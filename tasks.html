@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tasks: a to-do list in one file</title>
+<style>
+  :root {
+    --surface: #F8FAFB;
+    --ink:     #15202A;
+    --muted:   #66747F;
+    --rule:    #C7D0D6;
+    --accent:  #1E6F68;
+    --alarm:   #A3312B;
+    --on-fill: #FFF;
+    --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+    accent-color: var(--accent);
+    color-scheme: light dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 36px 20px 60px;
+    background: var(--surface);
+    color: var(--ink);
+    font: 16px/1.45 system-ui, sans-serif;
+  }
+
+  #title { cursor: text; }
+
+  h1 {
+    margin: 0;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--ink);
+    font-size: 32px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  button, .storage, .group, .outcome { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+  button { --tone: var(--ink); color: var(--tone); background: none; border: 0; cursor: pointer; }
+  .btn { background: color-mix(in srgb, var(--rule) 25%, var(--surface)); border: 1px solid var(--rule); border-radius: 3px; padding: 4px 8px; }
+  .primary, .sections .on { --tone: var(--accent); background: color-mix(in srgb, var(--tone) 12%, var(--surface)); border-color: var(--tone); }
+  .danger { --tone: var(--alarm); border-color: var(--tone); }
+  .manage { --tone: var(--muted); padding: 3px 8px; font-size: 14px; line-height: 1.3; border: 1px dashed var(--rule); border-radius: 3px; }
+  .x { --tone: var(--muted); padding: 2px 5px; font-size: 15px; line-height: 1; }
+  .btn:hover, .manage:hover { color: var(--on-fill); background: var(--accent); border-color: var(--accent); }
+  .danger:hover { background: var(--tone); border-color: var(--tone); }
+  .x:hover { color: var(--on-fill); background: var(--alarm); }
+
+  .storage { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 12px; color: var(--muted); text-transform: none; }
+  .storage.stale { color: var(--alarm); }
+  .problem { flex-basis: 100%; color: var(--alarm); }
+  .nowhere > *:not(h1, .storage) { display: none; }
+
+  #entry {
+    width: 100%;
+    margin-top: 18px;
+    padding: 8px 0;
+    font: 18px system-ui, sans-serif;
+    color: var(--ink);
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  #entry:focus { outline: none; border-bottom-color: var(--accent); }
+  .sections { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 20px; }
+  .stages { display: flex; gap: 2px; margin-top: 20px; border-bottom: 1px solid var(--rule); }
+
+  .stages button {
+    --tone: var(--muted);
+    margin-bottom: -1px;
+    padding: 8px 14px;
+    font-size: 13px;
+    letter-spacing: 0.13em;
+    border-bottom: 2px solid transparent;
+  }
+
+  .stages button:hover { --tone: var(--ink); }
+  .stages .on { --tone: var(--ink); border-bottom-color: var(--accent); }
+
+  ul { list-style: none; margin: 0; padding: 0; border: 1px solid var(--rule); border-top: 0; }
+  ul:empty { display: none; }
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  li:last-child { border-bottom: 0; }
+  li.dragging { opacity: 0.35; }
+  li.group { padding: 11px 14px 6px; color: var(--muted); font-size: 10px; letter-spacing: 0.16em; }
+
+  .main { display: flex; align-items: center; gap: 10px; flex: 1 1 240px; min-width: 0; }
+  .grip { color: var(--rule); line-height: 1; cursor: grab; user-select: none; }
+  li:hover .grip { color: var(--muted); }
+  .box { width: 18px; height: 18px; flex: none; margin: 0; }
+  .label { flex: 1; min-width: 0; overflow-wrap: break-word; cursor: text; }
+  .outcome ~ .label { cursor: default; }
+  li.done .label { color: var(--muted); text-decoration: line-through; }
+  .label[contenteditable] { color: var(--ink); text-decoration: none; outline: none; border-bottom: 1px solid var(--accent); }
+  .outcome { flex: none; width: 118px; color: var(--muted); line-height: 1.6; }
+  .outcome.finished { color: var(--accent); }
+  .empty { margin: 0; padding: 30px 20px; text-align: center; color: var(--muted); border: 1px solid var(--rule); border-top: 0; }
+
+  .tray { display: flex; gap: 10px; }
+  .tray:has(> button:not([hidden])) { margin-top: 16px; }
+  #sweep { margin-left: auto; }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #14181B;
+      --ink:     #DCE4E8;
+      --muted:   #8A97A0;
+      --rule:    #38424A;
+      --accent:  #57BDB1;
+      --alarm:   #E0716A;
+      --on-fill: #14181B;
+    }
+  }
+
+  ::view-transition-group(*) { animation-duration: 180ms; }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  li:focus { outline: none; box-shadow: inset 3px 0 0 var(--accent); }
+
+  #help:not([hidden]) { display: grid; grid-template-columns: max-content 1fr; gap: 7px 18px; margin-top: 18px; padding: 16px 18px; border: 1px solid var(--rule); border-radius: 3px; }
+  #help kbd { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
+  #help span { font-size: 14px; color: var(--muted); }
+  @media (width <= 560px) {
+    #title { cursor: text; }
+
+  h1 { font-size: 26px; }
+    .grip { display: none; }
+    .main { flex-basis: 100%; }
+    .outcome { width: auto; }
+  }
+</style>
+</head>
+<body>
+<h1 id="title" title="Click to rename (T)">Tasks</h1>
+<div class="storage" id="storage"></div>
+<input id="entry" type="text" placeholder="What needs doing?" autocomplete="off">
+<div class="sections" id="sections"></div>
+<div class="stages" id="stages"></div>
+<ul id="list"></ul>
+<p class="empty" id="empty" hidden></p>
+<div class="tray">
+  <button id="keys" type="button" class="manage" title="Keyboard shortcuts (?)">?</button>
+  <button id="undo" type="button" class="btn" title="Undo (U)" hidden>Undo</button>
+  <button id="sweep" type="button" class="btn" title="Archive finished (S)" hidden>Archive finished</button>
+</div>
+<div id="help" hidden></div>
+<script>
+(function () {
+  "use strict";
+  const el = Object.fromEntries(["title", "list", "empty", "entry", "sections", "stages", "storage", "sweep", "undo", "keys", "help"]
+    .map(id => [id, document.getElementById(id)]));
+
+  // ─── elements ──────────────────────────────────────────────────
+
+  function h(tag, props, kids) {
+    const node = Object.assign(document.createElement(tag), props);
+    if (kids) node.append(...kids.filter(Boolean));
+    return node;
+  }
+
+  const now = () => new Date().toISOString();
+  const uid = () => crypto.randomUUID();
+
+  const STAGES = [
+    {
+      id: "inbox",
+      label: "Inbox",
+      empty: "Nothing waiting. Capture anything you are not doing right now and it will sit here until you are ready."
+    },
+    {
+      id: "focus",
+      label: "Focus",
+      empty: "Nothing in focus. Type a task above, or pull one over from the inbox."
+    },
+    {
+      id: "archive",
+      label: "Archive",
+      empty: "Nothing archived. Anything you finish or drop lands here, so nothing is lost by accident."
+    }
+  ];
+
+  // ─── state ─────────────────────────────────────────────────────
+
+  let tasks = [];
+  let sections = [];
+  let title = "Tasks";
+  let stage = "focus";
+  let filter = "all";
+
+  const byId = (id) => tasks.find(t => t.id === id);
+
+  function normalize(t) {
+    const done = !!t.done;
+    let at = STAGES.some(s => s.id === t.stage) ? t.stage : "focus";
+    if (at === "inbox" && done) at = "focus";
+    return { id: t.id || uid(), text: String(t.text), done, stage: at, sectionId: t.sectionId || null, at: t.at || now() };
+  }
+
+  function hydrate(data) {
+    title = (typeof data.title === "string" && data.title.trim()) || "Tasks";
+    sections = (data.sections || [])
+      .filter(s => s && typeof s.name === "string")
+      .map(s => ({ id: s.id || uid(), name: s.name.slice(0, 40) }));
+    const known = new Set(sections.map(s => s.id));
+    tasks = (data.tasks || [])
+      .filter(t => t && typeof t.text === "string")
+      .map(normalize)
+      .map(t => (known.has(t.sectionId) ? t : Object.assign(t, { sectionId: null })));
+  }
+
+  function visible() {
+    const rows = tasks.filter(t => t.stage === stage && (filter === "all" || t.sectionId === filter));
+    return stage === "archive" ? rows.toSorted((a, b) => b.at.localeCompare(a.at)) : rows;
+  }
+
+  const when = (iso) => new Date(iso).toDateString() === new Date().toDateString()
+    ? "today" : new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+  // ─── the file ──────────────────────────────────────────────────
+
+  const TYPES = [{ description: "Tasks data", accept: { "application/json": [".json"] } }];
+  const supported = typeof window.showSaveFilePicker === "function";
+  let handle = null, savedAt = null, problem = "", timer = null;
+
+  // ─── saving and undo ───────────────────────────────────────────
+
+  const snapshot = (indent) => JSON.stringify({ title, sections, tasks }, null, indent);
+  let past = [], current = snapshot();
+
+  // Every data mutation ends here, so history is recorded in one place.
+  function save(label) {
+    const next = snapshot();
+    if (next !== current) {
+      past.push({ data: current, label: label || "change" });
+      if (past.length > 40) past.shift();
+      current = next;
+    }
+    flush();
+  }
+
+  function undo() {
+    if (!past.length) return;
+    current = past.pop().data;
+    hydrate(JSON.parse(current));
+    if (filter !== "all" && !sections.some(s => s.id === filter)) filter = "all";
+    flush();
+  }
+
+  function flush() {
+    clearTimeout(timer);
+    if (handle) timer = setTimeout(() => { timer = null; write(); }, 300);
+    render();
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && timer) { clearTimeout(timer); timer = null; write(); }
+  });
+
+  async function write() {
+    try {
+      const stream = await handle.createWritable();
+      await stream.write(snapshot(2));
+      await stream.close();
+      savedAt = new Date();
+      problem = "";
+    } catch (err) { problem = err.name + ": " + (err.message || "write failed"); }
+    renderStorage();
+  }
+
+  const picker = (fn) => async () => {
+    try {
+      await fn();
+      problem = "";
+      past = [];
+      current = snapshot();
+      await write();
+      render();
+      el.entry.focus();
+    } catch (err) {
+      if (err.name === "AbortError") return;
+      problem = err.name === "SecurityError"
+        ? "Your browser blocked the file picker on a page opened straight from disk."
+        : err.name + ": " + (err.message || "unknown error");
+      renderStorage();
+    }
+  };
+
+  const newFile = picker(async () => {
+    handle = await window.showSaveFilePicker({ suggestedName: "tasks.json", types: TYPES });
+  });
+
+  const openFile = picker(async () => {
+    const [picked] = await window.showOpenFilePicker({ types: TYPES, multiple: false });
+    const text = await (await picked.getFile()).text();
+    hydrate(text.trim() ? JSON.parse(text) : {});
+    handle = picked;
+    filter = "all";
+  });
+
+  // ─── the storage line ──────────────────────────────────────────
+
+  function renderStorage() {
+    document.body.classList.toggle("nowhere", !handle);
+    el.storage.className = handle ? "storage" : "storage stale";
+    el.storage.replaceChildren(handle
+      ? "Saving to " + handle.name + (savedAt ? " \u00B7 saved " + savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "")
+      : supported
+        ? "Everything is kept in one file that you choose:"
+        : "Saving straight to a file needs Chrome or Edge on the desktop, so nothing here can be kept.");
+    if (!handle && supported) el.storage.append(
+      h("button", { type: "button", className: "btn primary", textContent: "Open a file", onclick: openFile }),
+      h("button", { type: "button", className: "btn", textContent: "Start a new file", onclick: newFile }));
+    if (problem) el.storage.append(h("span", { className: "problem", textContent: problem }));
+  }
+
+  // ─── sections ──────────────────────────────────────────────────
+
+  function renderSections() {
+    const chip = (label, id) => {
+      const b = h("button", { type: "button", className: "btn", textContent: label, onclick: () => { filter = id; render(); } });
+      b.classList.toggle("on", filter === id);
+      return b;
+    };
+    const manage = (label, fn, name) => h("button",
+      { type: "button", className: "manage", textContent: label, title: name || label, onclick: fn });
+    el.sections.replaceChildren(
+      ...(sections.length ? [chip("All", "all"), ...sections.map(s => chip(s.name, s.id))] : []),
+      manage("+", () => editSection(), "New section (N)"));
+    const here = sections.find(s => s.id === filter);
+    if (here) el.sections.append(
+      manage("/", () => editSection(here), "Rename section (R)"),
+      manage("\u00D7", () => remove(here), "Remove section (X)"));
+  }
+
+  function editSection(section) {
+    const name = (prompt(section ? "Rename this section" : "Name this section", section ? section.name : "") || "")
+      .trim().slice(0, 40);
+    if (!name) return;
+    if (section) {
+      section.name = name;
+    } else {
+      const s = { id: uid(), name };
+      sections.push(s);
+      filter = s.id;
+    }
+    save(section ? "rename" : "new section");
+  }
+
+  function remove(s) {
+    tasks.forEach(t => { if (t.sectionId === s.id) t.sectionId = null; });
+    sections = sections.filter(x => x !== s);
+    filter = "all";
+    save("remove section");
+  }
+
+  // ─── moving tasks around ───────────────────────────────────────
+
+  const act = (label, fn, cls) => h("button", { type: "button", textContent: label, className: cls, onclick: fn });
+  const stamp = (t, changes) => Object.assign(t, changes, { at: now() });
+
+  function focusRow(dir) {
+    const rows = [...el.list.querySelectorAll("li[data-id]")];
+    if (!rows.length) return;
+    const at = rows.indexOf(document.activeElement.closest("li[data-id]"));
+    rows[at < 0 ? 0 : Math.max(0, Math.min(rows.length - 1, at + dir))].focus();
+  }
+
+  function restage(t, dir) {
+    const to = STAGES[STAGES.findIndex(s => s.id === t.stage) + dir];
+    if (to) move(t, to.id);
+  }
+
+  function reorder(t, dir) {
+    if (stage === "archive") return;
+    const grouped = sections.length > 0 && filter === "all";
+    const near = visible().filter(x => !grouped || x.sectionId === t.sectionId);
+    const swap = near[near.indexOf(t) + dir];
+    if (!swap) return;
+    const a = tasks.indexOf(t), b = tasks.indexOf(swap);
+    [tasks[a], tasks[b]] = [tasks[b], tasks[a]];
+    save("reorder");
+  }
+
+  function resection(t) {
+    if (!sections.length) return;
+    const ids = [null, ...sections.map(s => s.id)];
+    t.sectionId = ids[(ids.indexOf(t.sectionId) + 1) % ids.length];
+    save("move to section");
+  }
+
+  function refilter(dir) {
+    if (!sections.length) return;
+    const ids = ["all", ...sections.map(s => s.id)];
+    filter = ids[(ids.indexOf(filter) + dir + ids.length) % ids.length];
+    render();
+  }
+
+  function move(t, to) {
+    stamp(t, { stage: to, done: to === "archive" ? t.done : false });
+    save(to === "archive" ? "archive" : "move");
+  }
+
+  // ─── building a row ────────────────────────────────────────────
+
+  function toggle(t, done) {
+    stamp(t, { done });
+    save(done ? "finish" : "reopen");
+  }
+
+  function purge(t) {
+    tasks = tasks.filter(x => x !== t);
+    save("delete");
+  }
+
+  function buildRow(t) {
+    const archived = t.stage === "archive";
+    const li = h("li", { className: t.done && !archived ? "done" : "", tabIndex: 0 });
+    li.dataset.id = t.id;
+    li.style.viewTransitionName = "t" + t.id.replace(/-/g, "");
+
+    const lead = archived
+      ? h("span", {
+          className: t.done ? "outcome finished" : "outcome",
+          textContent: (t.done ? "\u2713 Finished " : "\u25CB Dropped ") + when(t.at)
+        })
+      : h("span", { className: "grip", title: "Drag to reorder", textContent: "\u283F" });
+
+    const box = t.stage === "focus"
+      ? h("input", {
+          type: "checkbox",
+          className: "box",
+          checked: t.done,
+          onchange: (e) => toggle(t, e.target.checked)
+        })
+      : null;
+
+    const label = h("span", {
+      className: "label",
+      textContent: t.text,
+      title: archived ? "" : "Click to edit (Enter)",
+      onclick: archived ? null : (e) => editTask(e.target, t)
+    });
+
+    li.append(h("div", { className: "main" }, [lead, box, label]), ...rowActions(t));
+    return li;
+  }
+
+  function rowActions(t) {
+    if (t.stage === "archive") {
+      const back = act("\u2190 Restore", () => move(t, "focus"), "btn");
+      back.title = "Back to focus (\u2190)";
+      const kill = act("Delete", () => purge(t), "btn danger");
+      kill.title = "Delete for good (Backspace)";
+      return [back, kill];
+    }
+    const inbox = t.stage === "inbox";
+    const along = act(
+      inbox ? "\u2192 Focus" : "\u2190 Inbox",
+      () => move(t, inbox ? "focus" : "inbox"),
+      inbox ? "btn primary" : "btn"
+    );
+    along.title = inbox ? "Send to focus (\u2192)" : "Back to inbox (\u2190)";
+    const gone = act("\u00D7", () => move(t, "archive"), "x");
+    gone.title = "Move to archive (Backspace)";
+    return [along, gone];
+  }
+
+  // ─── editing in place ──────────────────────────────────────────
+
+  function edit(node, was, commit) {
+    if (node.isContentEditable) return;
+    node.contentEditable = "plaintext-only";
+    node.focus();
+    getSelection().selectAllChildren(node);
+    getSelection().collapseToEnd();
+
+    const done = new AbortController();
+
+    node.addEventListener("blur", () => {
+      done.abort();
+      node.contentEditable = "false";
+      commit(node.textContent.trim() || was);
+    }, { signal: done.signal });
+
+    node.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") node.textContent = was;
+      node.blur();
+    }, { signal: done.signal });
+  }
+
+  function editTask(label, t) {
+    edit(label, t.text, (text) => {
+      t.text = text;
+      save("edit");
+      if (document.activeElement === document.body) restoreFocus(0);
+    });
+  }
+
+  function editTitle() {
+    edit(el.title, title, (next) => {
+      title = next.slice(0, 60);
+      save("rename the list");
+    });
+  }
+
+  // ─── rendering ─────────────────────────────────────────────────
+
+  function render() {
+    if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      paint();
+      return;
+    }
+    document.startViewTransition(paint);
+  }
+
+  function paint() {
+    const held = el.list.contains(document.activeElement)
+      ? [...el.list.querySelectorAll("li[data-id]")].indexOf(document.activeElement.closest("li[data-id]")) : -1;
+    renderSections();
+    renderStorage();
+    const rows = visible();
+    const grouped = sections.length > 0 && filter === "all";
+    const nodes = [];
+    if (grouped && rows.length) {
+      [{ id: null, name: "General" }, ...sections].forEach(s => {
+        const mine = rows.filter(t => t.sectionId === s.id);
+        if (!mine.length && stage === "archive") return;
+        const head = h("li", { className: "group", textContent: s.name });
+        head.dataset.section = s.id || "";
+        nodes.push(head, ...mine.map(buildRow));
+      });
+    } else {
+      nodes.push(...rows.map(buildRow));
+    }
+    el.list.replaceChildren(...nodes);
+    el.empty.textContent = STAGES.find(s => s.id === stage).empty;
+    el.empty.hidden = rows.length > 0;
+    el.stages.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.stage === stage));
+    el.sweep.hidden = stage !== "focus" || !rows.some(t => t.done);
+    el.undo.hidden = !past.length;
+    if (past.length) el.undo.textContent = "\u21B6 Undo " + past[past.length - 1].label;
+    if (!el.title.isContentEditable) el.title.textContent = title;
+    document.title = title;
+    document.querySelectorAll("#entry, #sections button, #stages button, .tray button, #list button, #list input")
+      .forEach(n => { n.tabIndex = -1; });
+    if (held >= 0) restoreFocus(held);
+  }
+
+  let cursor = null;
+
+  function restoreFocus(held) {
+    const rows = [...el.list.querySelectorAll("li[data-id]")];
+    const row = rows.find(r => r.dataset.id === cursor) || rows[Math.min(held, rows.length - 1)];
+    if (row) row.focus();
+  }
+
+  el.list.addEventListener("focusin", (e) => {
+    const li = e.target.closest("li[data-id]");
+    if (li) cursor = li.dataset.id;
+  });
+
+  // ─── keyboard ──────────────────────────────────────────────────
+
+  el.entry.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      el.entry.blur();
+      return;
+    }
+    const text = el.entry.value.trim();
+    if (e.key !== "Enter" || !text) return;
+    tasks.unshift(normalize({ text, stage: "inbox", sectionId: filter === "all" ? null : filter }));
+    el.entry.value = "";
+    stage = "inbox";
+    save("add");
+  });
+
+  function rowKey(e, li, t) {
+    const archived = t.stage === "archive";
+    if (e.altKey) {
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return false;
+      reorder(t, e.key === "ArrowUp" ? -1 : 1);
+      return true;
+    }
+    switch (e.key) {
+      case "Enter":
+        if (!archived) editTask(li.querySelector(".label"), t);
+        return true;
+
+      case " ":
+        if (t.stage === "focus") toggle(t, !t.done);
+        return true;
+
+      case "ArrowRight":
+        restage(t, 1);
+        return true;
+
+      case "ArrowLeft":
+        restage(t, -1);
+        return true;
+
+      case "Backspace":
+      case "Delete":
+        if (archived) purge(t);
+        else move(t, "archive");
+        return true;
+
+      case "m":
+      case "M":
+        resection(t);
+        return true;
+    }
+    return false;
+  }
+
+  function appKey(e) {
+    const mine = sections.find(x => x.id === filter);
+    switch (e.key) {
+      case "ArrowDown": focusRow(1); return true;
+      case "ArrowUp": focusRow(-1); return true;
+      case "1": case "2": case "3": stage = STAGES[+e.key - 1].id; render(); return true;
+      case "[": refilter(-1); return true;
+      case "]": refilter(1); return true;
+      case "n": case "N": editSection(); return true;
+      case "r": case "R": if (mine) editSection(mine); return true;
+      case "x": case "X": if (mine) remove(mine); return true;
+      case "t": case "T": editTitle(); return true;
+      case "s": case "S": if (!el.sweep.hidden) el.sweep.click(); return true;
+      case "u": case "U": undo(); return true;
+      case "?": el.help.hidden = !el.help.hidden; return true;
+      case "Escape": if (el.help.hidden) return false; el.help.hidden = true; return true;
+      case "Enter": el.entry.focus(); return true;
+    }
+    return false;
+  }
+
+  document.addEventListener("keydown", (e) => {
+    const here = document.activeElement || document.body;
+    if (here.isContentEditable || /^(INPUT|TEXTAREA)$/.test(here.tagName)) return;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      undo();
+      return;
+    }
+    if (e.metaKey || e.ctrlKey || !handle) return;
+    const li = here.closest ? here.closest("li[data-id]") : null;
+    const t = li && byId(li.dataset.id);
+    if ((t && rowKey(e, li, t)) || (!e.altKey && appKey(e))) e.preventDefault();
+  });
+
+  const KEYS = [
+    ["Tab \u00B7 \u2191 \u2193", "move between tasks"],
+    ["Enter", "capture a task, or edit the focused one"],
+    ["Space", "finish or reopen"],
+    ["\u2192 \u00B7 \u2190", "send along or back: inbox \u2013 focus \u2013 archive"],
+    ["Backspace", "archive, or delete if already archived"],
+    ["Alt \u2191 \u2193", "reorder"],
+    ["M", "move to the next section"],
+    ["1 2 3", "inbox, focus, archive"],
+    ["[ ]", "previous or next section"],
+    ["N \u00B7 R \u00B7 X", "new, rename or remove a section"],
+    ["T", "rename the list"],
+    ["S", "archive everything finished"],
+    ["U \u00B7 Ctrl Z", "undo"],
+    ["?", "this list"]
+  ];
+
+  // ─── wiring up the chrome ──────────────────────────────────────
+
+  el.help.replaceChildren(...KEYS.flatMap(([k, what]) =>
+    [h("kbd", { textContent: k }), h("span", { textContent: what })]));
+  el.keys.addEventListener("click", () => { el.help.hidden = !el.help.hidden; });
+  el.title.addEventListener("click", editTitle);
+
+  el.stages.replaceChildren(...STAGES.map((s, i) => {
+    const b = h("button", { type: "button", textContent: s.label, title: s.label + " (" + (i + 1) + ")", onclick: () => { stage = s.id; render(); } });
+    b.dataset.stage = s.id;
+    return b;
+  }));
+
+  el.undo.addEventListener("click", undo);
+
+  el.sweep.addEventListener("click", () => {
+    visible().forEach(t => { if (t.done) stamp(t, { stage: "archive" }); });
+    save("archive finished");
+  });
+
+  // ─── drag to reorder ───────────────────────────────────────────
+
+  el.list.addEventListener("mousedown", (e) => {
+    if (e.target.classList.contains("grip")) e.target.closest("li").draggable = true;
+  });
+
+  document.addEventListener("mouseup", () => {
+    el.list.querySelectorAll("li[draggable]").forEach(n => { n.draggable = false; });
+  });
+
+  el.list.addEventListener("dragstart", (e) => e.target.classList.add("dragging"));
+  el.list.addEventListener("drop", (e) => e.preventDefault());
+
+  el.list.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    const over = e.target.closest("li");
+    const moving = el.list.querySelector(".dragging");
+    if (!over || !moving || over === moving) return;
+    if (over.classList.contains("group")) over.after(moving);
+    else {
+      const box = over.getBoundingClientRect();
+      over[e.clientY > box.top + box.height / 2 ? "after" : "before"](moving);
+    }
+  });
+
+  el.list.addEventListener("dragend", () => {
+    const nodes = [...el.list.children];
+    const ids = nodes.filter(n => n.dataset.id).map(n => n.dataset.id);
+    const moved = ids.map(byId);
+    // Refill the indices the visible rows occupied, so filtered-out tasks stay put.
+    const shown = new Set(ids);
+    const slots = [];
+    tasks.forEach((t, i) => { if (shown.has(t.id)) slots.push(i); });
+    slots.forEach((slot, i) => { tasks[slot] = moved[i]; });
+    let section = null, grouped = false;
+    nodes.forEach(n => {
+      if (n.classList.contains("group")) { section = n.dataset.section || null; grouped = true; }
+      else if (grouped) byId(n.dataset.id).sectionId = section;
+    });
+    save("reorder");
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
