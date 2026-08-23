@@ -73,7 +73,7 @@
 
   #entry:focus { outline: none; border-bottom-color: var(--accent); }
   .sections { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 20px; }
-  .stages { display: flex; gap: 2px; margin-top: 20px; border-bottom: 1px solid var(--rule); }
+  .stages { position: relative; display: flex; gap: 2px; margin-top: 20px; border-bottom: 1px solid var(--rule); }
 
   .stages button {
     --tone: var(--muted);
@@ -85,7 +85,21 @@
   }
 
   .stages button:hover { --tone: var(--ink); }
-  .stages .on { --tone: var(--ink); border-bottom-color: var(--accent); }
+  .stages .on { --tone: var(--ink); anchor-name: --stage-active; }
+
+  .stages::after {
+    content: "";
+    position: absolute;
+    position-anchor: --stage-active;
+    inset-block-end: -1px;
+    inset-inline-start: anchor(left);
+    inset-inline-end: anchor(right);
+    block-size: 2px;
+    background: var(--accent);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .stages::after { transition: inset 180ms ease-out; }
+  }
 
   ul { list-style: none; margin: 0; padding: 0; border: 1px solid var(--rule); border-top: 0; }
   ul:empty { display: none; }
@@ -130,8 +144,43 @@
   #help kbd { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
   #help span { font-size: 14px; color: var(--muted); }
 
+  #keys { anchor-name: --keys; }
+  #help {
+    position-anchor: --keys;
+    position-area: block-end span-inline-end;
+    position-try-fallbacks: flip-block, flip-inline;
+    inset: auto;
+    margin-block-start: 8px;
+  }
+
   dialog { width: min(400px, calc(100% - 32px)); padding: 20px; color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; }
   :is(dialog, #help)::backdrop { background: rgb(0 0 0 / 0.35); backdrop-filter: blur(2px); }
+
+  /* Fade + scale the dialog/popover and their backdrop in and out of the top layer. */
+  /* Plain selector list, not :is() -- :is() takes its specificity from the ID (#help), which would outrank dialog[open] below. */
+  dialog, #help {
+    opacity: 0;
+    scale: 0.96;
+    transition: opacity 180ms ease-out, scale 180ms ease-out, display 180ms allow-discrete, overlay 180ms allow-discrete;
+  }
+  dialog[open], #help:popover-open { opacity: 1; scale: 1; }
+  @starting-style {
+    dialog[open], #help:popover-open { opacity: 0; scale: 0.96; }
+  }
+
+  dialog::backdrop, #help::backdrop {
+    opacity: 0;
+    transition: opacity 180ms ease-out, display 180ms allow-discrete, overlay 180ms allow-discrete;
+  }
+  dialog[open]::backdrop, #help:popover-open::backdrop { opacity: 1; }
+  @starting-style {
+    dialog[open]::backdrop, #help:popover-open::backdrop { opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    dialog, #help { scale: 1; transition-duration: 80ms; }
+    dialog::backdrop, #help::backdrop { transition-duration: 80ms; }
+  }
   #askText { margin: 0; font-size: 15px; }
   #askInput { width: 100%; margin-top: 14px; padding: 8px 10px; font: 16px system-ui, sans-serif; color: var(--ink); background: none; border: 1px solid var(--rule); border-radius: 3px; }
   #askInput:focus { outline: none; border-color: var(--accent); }
@@ -360,10 +409,6 @@
     }, { once: true }));
   }
 
-  // command="close" needs Chrome/Edge 135; older builds get the same thing by hand.
-  if (!("commandForElement" in HTMLButtonElement.prototype)) {
-    el.ask.querySelector("[command='close']").addEventListener("click", () => el.ask.close(""));
-  }
 
   // ─── sections ──────────────────────────────────────────────────
 
