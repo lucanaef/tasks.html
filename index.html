@@ -121,10 +121,10 @@
   .grip { color: var(--rule); line-height: 1; cursor: grab; user-select: none; }
   li:hover .grip { color: var(--muted); }
   .box { width: 18px; height: 18px; flex: none; margin: 0; }
-  .label { flex: 1; min-width: 0; overflow-wrap: break-word; text-wrap: pretty; cursor: text; }
-  .outcome ~ .label { cursor: default; }
+  .label { flex: 1; min-width: 0; overflow-wrap: break-word; text-wrap: pretty; cursor: pointer; }
+  .mark { color: var(--muted); font-size: 12px; }
+  li.done .mark { text-decoration: line-through; }
   li.done .label { color: var(--muted); text-decoration: line-through; }
-  .label[contenteditable] { color: var(--ink); text-decoration: none; outline: none; border-bottom: 1px solid var(--accent); }
   .outcome { flex: none; width: 118px; color: var(--muted); line-height: 1.6; }
   .outcome.finished { color: var(--accent); }
   .empty { margin: 0; padding: 30px 20px; text-align: center; color: var(--muted); border: 1px solid var(--rule); border-top: 0; }
@@ -154,6 +154,7 @@
   }
 
   dialog { width: min(400px, calc(100% - 32px)); padding: 20px; color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; }
+  #detail { width: min(520px, calc(100% - 32px)); }
   :is(dialog, #help)::backdrop { background: rgb(0 0 0 / 0.35); backdrop-filter: blur(2px); }
 
   /* Fade + scale the dialog/popover and their backdrop in and out of the top layer. */
@@ -182,8 +183,23 @@
     dialog::backdrop, #help::backdrop { transition-duration: 80ms; }
   }
   #askText { margin: 0; font-size: 15px; }
-  #askInput { width: 100%; margin-top: 14px; padding: 8px 10px; font: 16px system-ui, sans-serif; color: var(--ink); background: none; border: 1px solid var(--rule); border-radius: 3px; }
-  #askInput:focus { outline: none; border-color: var(--accent); }
+
+  #askInput, #detailText, #detailNote {
+    display: block;
+    width: 100%;
+    margin-top: 14px;
+    padding: 8px 10px;
+    font: 16px system-ui, sans-serif;
+    color: var(--ink);
+    background: none;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+  }
+
+  :is(#askInput, #detailText, #detailNote):focus { outline: none; border-color: var(--accent); }
+
+  #detailHead { margin: 0; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  #detailNote { font: 15px/1.5 system-ui, sans-serif; resize: vertical; field-sizing: content; min-height: 7lh; max-height: 40vh; }
   .choices { display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: 8px; margin-top: 18px; }
 
   @media (width <= 560px) {
@@ -210,6 +226,17 @@
   <button id="sweep" type="button" class="btn" title="Archive finished (S)" hidden>Archive finished</button>
 </div>
 <div id="help" popover></div>
+<dialog id="detail" aria-labelledby="detailHead">
+  <form method="dialog">
+    <h2 id="detailHead">Task</h2>
+    <input id="detailText" type="text" autocomplete="off" placeholder="What needs doing?">
+    <textarea id="detailNote" placeholder="Anything worth remembering about it"></textarea>
+    <div class="choices">
+      <button type="submit" value="ok" class="btn primary">Save</button>
+      <button type="button" class="btn" command="close" commandfor="detail">Cancel</button>
+    </div>
+  </form>
+</dialog>
 <dialog id="ask" aria-labelledby="askText">
   <form method="dialog">
     <p id="askText"></p>
@@ -223,7 +250,7 @@
 <script>
 (function () {
   "use strict";
-  const el = Object.fromEntries(["title", "list", "empty", "entry", "sections", "stages", "storage", "sweep", "undo", "help", "ask", "askText", "askInput", "askGo"]
+  const el = Object.fromEntries(["title", "list", "empty", "entry", "sections", "stages", "storage", "sweep", "undo", "help", "ask", "askText", "askInput", "askGo", "detail", "detailText", "detailNote"]
     .map(id => [id, document.getElementById(id)]));
 
   // ─── elements ──────────────────────────────────────────────────
@@ -269,7 +296,10 @@
     const done = !!t.done;
     let at = STAGES.some(s => s.id === t.stage) ? t.stage : "focus";
     if (at === "inbox" && done) at = "focus";
-    return { id: t.id || uid(), text: String(t.text), done, stage: at, sectionId: t.sectionId || null, at: t.at || now() };
+    // A task without a description carries no note key at all, so files written
+    // before descriptions existed load, and save again, unchanged.
+    const note = typeof t.note === "string" ? t.note.trim() : "";
+    return { id: t.id || uid(), text: String(t.text), done, stage: at, sectionId: t.sectionId || null, at: t.at || now(), ...(note && { note }) };
   }
 
   function hydrate(data) {
@@ -442,6 +472,35 @@
   }
 
 
+  // ─── a task up close ───────────────────────────────────────────
+
+  // Same accept path as ask(): the form closes the dialog and reports
+  // which button submitted it, and Escape leaves returnValue empty.
+  function detail(t) {
+    el.detailText.value = t.text;
+    el.detailNote.value = t.note || "";
+    el.detail.returnValue = "";
+    el.detail.showModal();
+    el.detailText.select();
+    return new Promise(resolve => el.detail.addEventListener("close", () => {
+      resolve(el.detail.returnValue === "ok"
+        ? { text: el.detailText.value.trim(), note: el.detailNote.value.trim() }
+        : null);
+    }, { once: true }));
+  }
+
+  async function openTask(t) {
+    const next = await detail(t);
+    if (!next) return;
+    t.text = next.text || t.text;
+    if (next.note) t.note = next.note;
+    else delete t.note;
+    save("edit");
+    // Closing the dialog hands focus back to the row, but the repaint above
+    // replaced it, so put the cursor back where it was.
+    if (document.activeElement === document.body) restoreFocus(0);
+  }
+
   // ─── sections ──────────────────────────────────────────────────
 
   function renderSections() {
@@ -583,11 +642,16 @@
     const label = h("span", {
       className: "label",
       textContent: t.text,
-      title: archived ? "" : "Click to edit (Enter)",
-      onclick: archived ? null : (e) => editTask(e.target, t)
+      title: "Click to open (Enter)",
+      onclick: () => openTask(t)
     });
 
-    li.append(h("div", { className: "main" }, [lead, box, label]), ...rowActions(t));
+    // A description is invisible from the list otherwise.
+    const mark = t.note
+      ? h("span", { className: "mark", textContent: "\u00B6", title: "Has a description" })
+      : null;
+
+    li.append(h("div", { className: "main" }, [lead, box, label, mark]), ...rowActions(t));
     return li;
   }
 
@@ -635,14 +699,6 @@
       if (e.key === "Escape") node.textContent = was;
       node.blur();
     }, { signal: done.signal });
-  }
-
-  function editTask(label, t) {
-    edit(label, t.text, (text) => {
-      t.text = text;
-      save("edit");
-      if (document.activeElement === document.body) restoreFocus(0);
-    });
   }
 
   function editTitle() {
@@ -732,7 +788,7 @@
     }
     switch (e.key) {
       case "Enter":
-        if (!archived) editTask(li.querySelector(".label"), t);
+        openTask(t);
         return true;
 
       case " ":
@@ -784,7 +840,7 @@
   document.addEventListener("keydown", (e) => {
     const here = document.activeElement || document.body;
     if (here.isContentEditable || /^(INPUT|TEXTAREA)$/.test(here.tagName)) return;
-    if (el.ask.open) return;
+    if (el.ask.open || el.detail.open) return;
     // The popover handles Esc and light dismiss itself; ? still closes it.
     if (el.help.matches(":popover-open")) {
       if (e.key === "?") { el.help.hidePopover(); e.preventDefault(); }
@@ -803,7 +859,7 @@
 
   const KEYS = [
     ["Tab \u00B7 \u2191 \u2193", "move between tasks"],
-    ["Enter", "capture a task, or edit the focused one"],
+    ["Enter", "capture a task, or open the focused one"],
     ["Space", "finish or reopen"],
     ["\u2192 \u00B7 \u2190", "send along or back: inbox \u2013 focus \u2013 archive"],
     ["Backspace", "archive, or delete if already archived"],
