@@ -296,7 +296,7 @@
 
   const TYPES = [{ description: "Tasks data", accept: { "application/json": [".json"] } }];
   const supported = typeof window.showSaveFilePicker === "function";
-  let handle = null, savedAt = null, problem = "", timer = null;
+  let handle = null, savedAt = null, problem = "", timer = null, locked = false;
 
   // ─── saving and undo ───────────────────────────────────────────
 
@@ -332,15 +332,44 @@
     if (document.hidden && timer) { clearTimeout(timer); timer = null; write(); }
   });
 
+  // The browser drops write permission on a handle once the tab has been
+  // idle, and createWritable() would then have to prompt — which it may only
+  // do under a click. Writes here are debounced or fire on the way out, so we
+  // check first and park the file until the reconnect button below is pressed.
+  async function granted() {
+    if (!handle.queryPermission) return true;
+    return await handle.queryPermission({ mode: "readwrite" }) === "granted";
+  }
+
   async function write() {
+    if (!await granted()) return lock();
     try {
       const stream = await handle.createWritable();
       await stream.write(snapshot(2));
       await stream.close();
       savedAt = new Date();
       problem = "";
-    } catch (err) { problem = err.name + ": " + (err.message || "write failed"); }
+      locked = false;
+    } catch (err) {
+      if (err.name === "SecurityError" || err.name === "NotAllowedError") return lock();
+      problem = err.name + ": " + (err.message || "write failed");
+    }
     renderStorage();
+  }
+
+  function lock() {
+    locked = true;
+    problem = "Your browser wants permission to write to " + handle.name + " again.";
+    renderStorage();
+  }
+
+  // Runs from a click, so requestPermission() is allowed to show its prompt.
+  async function reconnect() {
+    try {
+      if (await handle.requestPermission({ mode: "readwrite" }) !== "granted") return lock();
+      locked = false;
+      await write();
+    } catch (err) { problem = err.name + ": " + (err.message || "unknown error"); renderStorage(); }
   }
 
   const picker = (fn) => async () => {
@@ -377,12 +406,14 @@
 
   function renderStorage() {
     document.body.classList.toggle("nowhere", !handle);
-    el.storage.className = handle ? "storage" : "storage stale";
+    el.storage.className = handle && !locked ? "storage" : "storage stale";
     el.storage.replaceChildren(handle
       ? "Saving to " + handle.name + (savedAt ? " \u00B7 saved " + savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "")
       : supported
         ? "Everything is kept in one file that you choose:"
         : "Saving straight to a file needs Chrome or Edge on the desktop, so nothing here can be kept.");
+    if (handle && locked) el.storage.append(
+      h("button", { type: "button", className: "btn primary", textContent: "Allow saving again", onclick: reconnect }));
     if (!handle && supported) el.storage.append(
       h("button", { type: "button", className: "btn primary", textContent: "Open a file", onclick: openFile }),
       h("button", { type: "button", className: "btn", textContent: "Start a new file", onclick: newFile }));
