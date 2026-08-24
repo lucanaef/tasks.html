@@ -332,17 +332,7 @@
     if (document.hidden && timer) { clearTimeout(timer); timer = null; write(); }
   });
 
-  // The browser drops write permission on a handle once the tab has been
-  // idle, and createWritable() would then have to prompt — which it may only
-  // do under a click. Writes here are debounced or fire on the way out, so we
-  // check first and park the file until the reconnect button below is pressed.
-  async function granted() {
-    if (!handle.queryPermission) return true;
-    return await handle.queryPermission({ mode: "readwrite" }) === "granted";
-  }
-
   async function write() {
-    if (!await granted()) return lock();
     try {
       const stream = await handle.createWritable();
       await stream.write(snapshot(2));
@@ -357,42 +347,30 @@
     renderStorage();
   }
 
+  // The browser lets go of a file once the tab has sat idle, and the writes here
+  // are debounced or fire on the way out, so none of them can recover it. Park the
+  // file instead and let the button below, which has a click behind it, sort it out.
   function lock() {
     locked = true;
-    problem = "Your browser dropped its hold on " + handle.name + ". Point at the same file again to carry on saving.";
+    problem = "Your browser let go of " + handle.name + ". Point at the same file again to carry on saving.";
     renderStorage();
   }
 
-  // A page opened straight from disk has an opaque origin, and requestPermission()
-  // refuses to run in one — so a lapsed grant can never be asked for again there.
-  // Picking the file a second time hands back a fresh grant without asking, which
-  // works on file:// and on a real origin alike. Both need the click we are inside.
+  // requestPermission() refuses to run on a page whose origin is opaque, which is
+  // what a page opened straight from disk has. Picking the same file again grants
+  // the same thing without asking, and works either way.
   async function reconnect() {
     try {
-      if (handle.requestPermission &&
-          await handle.requestPermission({ mode: "readwrite" }) === "granted") return unlock();
-    } catch (err) { if (err.name !== "SecurityError") { fail(err); return; } }
-    try {
-      handle = await window.showSaveFilePicker({ suggestedName: handle.name, types: TYPES });
-      unlock();
-    } catch (err) { if (err.name !== "AbortError") fail(err); }
-  }
-
-  async function unlock() {
-    locked = false;
-    await write();
-  }
-
-  function fail(err) {
-    problem = err.name + ": " + (err.message || "unknown error");
-    renderStorage();
-  }
-
-  // Nothing above can be counted on, so there is always a way to carry the data out.
-  function download() {
-    const url = URL.createObjectURL(new Blob([snapshot(2)], { type: "application/json" }));
-    h("a", { href: url, download: handle ? handle.name : "tasks.json" }).click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const asked = await handle.requestPermission({ mode: "readwrite" })
+        .catch(err => { if (err.name === "SecurityError") return "prompt"; throw err; });
+      if (asked !== "granted")
+        handle = await window.showSaveFilePicker({ suggestedName: handle.name, types: TYPES });
+      await write();
+    } catch (err) {
+      if (err.name === "AbortError") return;
+      problem = err.name + ": " + (err.message || "unknown error");
+      renderStorage();
+    }
   }
 
   const picker = (fn) => async () => {
@@ -436,8 +414,7 @@
         ? "Everything is kept in one file that you choose:"
         : "Saving straight to a file needs Chrome or Edge on the desktop, so nothing here can be kept.");
     if (handle && locked) el.storage.append(
-      h("button", { type: "button", className: "btn primary", textContent: "Choose " + handle.name + " again", onclick: reconnect }),
-      h("button", { type: "button", className: "btn", textContent: "Download a copy", onclick: download }));
+      h("button", { type: "button", className: "btn primary", textContent: "Choose " + handle.name + " again", onclick: reconnect }));
     if (!handle && supported) el.storage.append(
       h("button", { type: "button", className: "btn primary", textContent: "Open a file", onclick: openFile }),
       h("button", { type: "button", className: "btn", textContent: "Start a new file", onclick: newFile }));
