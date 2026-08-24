@@ -326,7 +326,33 @@
 
   const TYPES = [{ description: "Tasks data", accept: { "application/json": [".json"] } }];
   const supported = typeof window.showSaveFilePicker === "function";
-  let handle = null, savedAt = null, problem = "", timer = null, locked = false;
+  let handle = null, savedAt = null, problem = "", timer = null, stalled = null;
+
+  // ─── the file, next time ───────────────────────────────────────
+
+  // A handle keeps in IndexedDB, so the file comes back without the picker. A page
+  // opened from disk has no database, and fails quietly into asking for a file.
+  const DB = "tasks", STORE = "handle", KEY = "file";
+  let conn = null;
+
+  function database() {
+    conn ||= new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return conn;
+  }
+
+  const tx = (mode, run) => database().then(db => new Promise((resolve, reject) => {
+    const req = run(db.transaction(STORE, mode).objectStore(STORE));
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  }));
+
+  const remember = (h) => tx("readwrite", s => s.put(h, KEY)).catch(() => {});
+  const remembered = () => tx("readonly", s => s.get(KEY)).catch(() => null);
 
   // ─── saving and undo ───────────────────────────────────────────
 
@@ -369,7 +395,7 @@
       await stream.close();
       savedAt = new Date();
       problem = "";
-      locked = false;
+      stalled = null;
     } catch (err) {
       if (err.name === "SecurityError" || err.name === "NotAllowedError") return lock();
       problem = err.name + ": " + (err.message || "write failed");
@@ -381,8 +407,11 @@
   // are debounced or fire on the way out, so none of them can recover it. Park the
   // file instead and let the button below, which has a click behind it, sort it out.
   function lock() {
-    locked = true;
-    problem = "Your browser let go of " + handle.name + ". Point at the same file again to carry on saving.";
+    stalled = {
+      note: "Your browser let go of " + handle.name + ". Point at the same file again to carry on saving.",
+      go: "Choose " + handle.name + " again",
+      act: reconnect
+    };
     renderStorage();
   }
 
@@ -393,8 +422,10 @@
     try {
       const asked = await handle.requestPermission({ mode: "readwrite" })
         .catch(err => { if (err.name === "SecurityError") return "prompt"; throw err; });
-      if (asked !== "granted")
+      if (asked !== "granted") {
         handle = await window.showSaveFilePicker({ suggestedName: handle.name, types: TYPES });
+        await remember(handle);
+      }
       await write();
     } catch (err) {
       if (err.name === "AbortError") return;
@@ -406,6 +437,7 @@
   const picker = (fn) => async () => {
     try {
       await fn();
+      await remember(handle);
       problem = "";
       past = [];
       current = snapshot();
@@ -433,18 +465,82 @@
     filter = "all";
   });
 
+  // ─── picking the file back up ──────────────────────────────────
+
+  async function restore() {
+    if (!supported) return;
+    const kept = await remembered();
+    if (!kept) return;
+    handle = kept;
+    try {
+      if (await handle.queryPermission({ mode: "readwrite" }) === "granted") return load();
+    } catch {
+      handle = null;
+      return;
+    }
+    stalled = {
+      note: "Picking up where you left off in " + handle.name + ".",
+      go: "Open " + handle.name,
+      act: resume
+    };
+    renderStorage();
+  }
+
+  async function resume() {
+    try {
+      if (await handle.requestPermission({ mode: "readwrite" }) !== "granted") {
+        problem = "Nothing can be saved until " + handle.name + " is open again.";
+        return renderStorage();
+      }
+      await load();
+    } catch (err) {
+      if (err.name !== "AbortError") lost(err);
+    }
+  }
+
+  // Writes nothing back, unlike picker(): opening a file should not touch it.
+  async function load() {
+    try {
+      const text = await (await handle.getFile()).text();
+      hydrate(text.trim() ? JSON.parse(text) : {});
+    } catch (err) {
+      return lost(err);
+    }
+    past = [];
+    current = snapshot();
+    stalled = null;
+    problem = "";
+    render();
+    el.entry.focus();
+  }
+
+  function lost(err) {
+    if (err.name === "NotFoundError") {
+      problem = handle.name + " has moved or gone. Open it where it lives now, or start a new one.";
+      handle = null;
+      remember(null);
+    } else {
+      problem = err.name + ": " + (err.message || "the file could not be read");
+    }
+    stalled = null;
+    renderStorage();
+  }
+
   // ─── the storage line ──────────────────────────────────────────
 
   function renderStorage() {
     document.body.classList.toggle("nowhere", !handle);
-    el.storage.className = handle && !locked ? "storage" : "storage stale";
+    el.storage.className = handle && !stalled ? "storage" : "storage stale";
+    // With no file yet the two buttons below say it all, so there is nothing to write.
     el.storage.replaceChildren(handle
-      ? "Saving to " + handle.name + (savedAt ? " \u00B7 saved " + savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "")
+      ? stalled
+        ? stalled.note
+        : "Saving to " + handle.name + (savedAt ? " \u00B7 saved " + savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "")
       : supported
-        ? "Everything is kept in one file that you choose:"
+        ? ""
         : "Saving straight to a file needs Chrome or Edge on the desktop, so nothing here can be kept.");
-    if (handle && locked) el.storage.append(
-      h("button", { type: "button", className: "btn primary", textContent: "Choose " + handle.name + " again", onclick: reconnect }));
+    if (handle && stalled) el.storage.append(
+      h("button", { type: "button", className: "btn primary", textContent: stalled.go, onclick: stalled.act }));
     if (!handle && supported) el.storage.append(
       h("button", { type: "button", className: "btn primary", textContent: "Open a file", onclick: openFile }),
       h("button", { type: "button", className: "btn", textContent: "Start a new file", onclick: newFile }));
@@ -936,6 +1032,7 @@
   });
 
   render();
+  restore();
 })();
 </script>
 </body>
