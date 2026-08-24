@@ -359,17 +359,40 @@
 
   function lock() {
     locked = true;
-    problem = "Your browser wants permission to write to " + handle.name + " again.";
+    problem = "Your browser dropped its hold on " + handle.name + ". Point at the same file again to carry on saving.";
     renderStorage();
   }
 
-  // Runs from a click, so requestPermission() is allowed to show its prompt.
+  // A page opened straight from disk has an opaque origin, and requestPermission()
+  // refuses to run in one — so a lapsed grant can never be asked for again there.
+  // Picking the file a second time hands back a fresh grant without asking, which
+  // works on file:// and on a real origin alike. Both need the click we are inside.
   async function reconnect() {
     try {
-      if (await handle.requestPermission({ mode: "readwrite" }) !== "granted") return lock();
-      locked = false;
-      await write();
-    } catch (err) { problem = err.name + ": " + (err.message || "unknown error"); renderStorage(); }
+      if (handle.requestPermission &&
+          await handle.requestPermission({ mode: "readwrite" }) === "granted") return unlock();
+    } catch (err) { if (err.name !== "SecurityError") { fail(err); return; } }
+    try {
+      handle = await window.showSaveFilePicker({ suggestedName: handle.name, types: TYPES });
+      unlock();
+    } catch (err) { if (err.name !== "AbortError") fail(err); }
+  }
+
+  async function unlock() {
+    locked = false;
+    await write();
+  }
+
+  function fail(err) {
+    problem = err.name + ": " + (err.message || "unknown error");
+    renderStorage();
+  }
+
+  // Nothing above can be counted on, so there is always a way to carry the data out.
+  function download() {
+    const url = URL.createObjectURL(new Blob([snapshot(2)], { type: "application/json" }));
+    h("a", { href: url, download: handle ? handle.name : "tasks.json" }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   const picker = (fn) => async () => {
@@ -413,7 +436,8 @@
         ? "Everything is kept in one file that you choose:"
         : "Saving straight to a file needs Chrome or Edge on the desktop, so nothing here can be kept.");
     if (handle && locked) el.storage.append(
-      h("button", { type: "button", className: "btn primary", textContent: "Allow saving again", onclick: reconnect }));
+      h("button", { type: "button", className: "btn primary", textContent: "Choose " + handle.name + " again", onclick: reconnect }),
+      h("button", { type: "button", className: "btn", textContent: "Download a copy", onclick: download }));
     if (!handle && supported) el.storage.append(
       h("button", { type: "button", className: "btn primary", textContent: "Open a file", onclick: openFile }),
       h("button", { type: "button", className: "btn", textContent: "Start a new file", onclick: newFile }));
