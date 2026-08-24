@@ -388,7 +388,21 @@
     if (document.hidden && timer) { clearTimeout(timer); timer = null; write(); }
   });
 
-  async function write() {
+  // Changes coming faster than a write completes would start a second stream on a
+  // file the first one still holds. Keep one write in flight, and follow it with a
+  // single catch-up write for whatever changed meanwhile.
+  let writing = null, pending = false;
+
+  function write() {
+    if (writing) { pending = true; return writing; }
+    writing = writeOnce().finally(() => {
+      writing = null;
+      if (pending) { pending = false; write(); }
+    });
+    return writing;
+  }
+
+  async function writeOnce() {
     try {
       const stream = await handle.createWritable();
       await stream.write(snapshot(2));
