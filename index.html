@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tasks</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none' stroke='%23359A8F'><path d='M8 4H4v24h4M24 4h4v24h-4' stroke-width='2.5'/><path d='m10.5 16.5 4 4.5L22 11' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<script>
+  // Ahead of the first paint, so a dark reader never gets a white flash.
+  try {
+    const seen = localStorage.getItem("tasks.theme");
+    if (seen === "light" || seen === "dark") document.documentElement.style.colorScheme = seen;
+  } catch {}
+</script>
 <style>
   :root {
     --surface: light-dark(#F8FAFB, #14181B);
@@ -59,7 +66,7 @@
   .storage { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 12px; color: var(--muted); text-transform: none; }
   .storage.stale { color: var(--alarm); }
   .problem { flex-basis: 100%; color: var(--alarm); }
-  .nowhere > *:not(h1, .storage, dialog, [popover]) { display: none; }
+  .nowhere > *:not(h1, .storage, .tray, dialog, [popover]) { display: none; }
 
   #entry {
     width: 100%;
@@ -223,6 +230,7 @@
 <p class="empty" id="empty" hidden></p>
 <div class="tray">
   <button id="keys" type="button" class="manage" popovertarget="help" title="Keyboard shortcuts (?)">?</button>
+  <button id="theme" type="button" class="manage"></button>
   <button id="undo" type="button" class="btn" title="Undo (U)" hidden>Undo</button>
   <button id="sweep" type="button" class="btn" title="Archive finished (S)" hidden>Archive finished</button>
 </div>
@@ -251,7 +259,7 @@
 <script>
 (function () {
   "use strict";
-  const el = Object.fromEntries(["title", "list", "empty", "entry", "sections", "stages", "storage", "sweep", "undo", "help", "ask", "askText", "askInput", "askGo", "detail", "detailText", "detailNote"]
+  const el = Object.fromEntries(["title", "list", "empty", "entry", "sections", "stages", "storage", "sweep", "undo", "theme", "help", "ask", "askText", "askInput", "askGo", "detail", "detailText", "detailNote"]
     .map(id => [id, document.getElementById(id)]));
 
   // ─── elements ──────────────────────────────────────────────────
@@ -940,6 +948,7 @@
       case "r": case "R": if (mine) editSection(mine); return true;
       case "x": case "X": if (mine) remove(mine); return true;
       case "t": case "T": editTitle(); return true;
+      case "d": case "D": cycleTheme(); return true;
       case "s": case "S": if (!el.sweep.hidden) el.sweep.click(); return true;
       case "u": case "U": undo(); return true;
       case "?": el.help.togglePopover(); return true;
@@ -980,10 +989,40 @@
     ["[ ]", "previous or next section"],
     ["N \u00B7 R \u00B7 X", "new, rename or remove a section"],
     ["T", "rename the list"],
+    ["D", "light, dark or match the system"],
     ["S", "archive everything finished"],
     ["U \u00B7 Ctrl Z", "undo"],
     ["?", "this list"]
   ];
+
+  // ─── light or dark ─────────────────────────────────────────────
+
+  // Belongs to this browser rather than to the list, so it stays out of the file and out of undo.
+  const MODES = [
+    { id: "auto", scheme: "", mark: "\u25D0", say: "matching your system" },
+    { id: "light", scheme: "light", mark: "\u2600", say: "always light" },
+    { id: "dark", scheme: "dark", mark: "\u263E", say: "always dark" }
+  ];
+
+  const THEME = "tasks.theme";
+  const preferred = () => { try { return localStorage.getItem(THEME); } catch { return null; } };
+  const prefer = (id) => { try { localStorage.setItem(THEME, id); } catch {} };
+
+  let mode = MODES.find(m => m.id === preferred()) || MODES[0];
+
+  function applyTheme() {
+    document.documentElement.style.colorScheme = mode.scheme;
+    el.theme.textContent = mode.mark;
+    el.theme.title = "Theme: " + mode.say + " (D)";
+  }
+
+  function cycleTheme() {
+    mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
+    prefer(mode.id);
+    applyTheme();
+  }
+
+  el.theme.addEventListener("click", cycleTheme);
 
   // ─── wiring up the chrome ──────────────────────────────────────
 
@@ -1046,6 +1085,7 @@
     save("reorder");
   });
 
+  applyTheme();
   render();
   restore();
 })();
