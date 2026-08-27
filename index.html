@@ -277,12 +277,17 @@
     {
       id: "inbox",
       label: "Inbox",
-      empty: "Nothing waiting. Capture anything you are not doing right now and it will sit here until you are ready."
+      empty: "Nothing captured yet. Anything you are not doing right now sits here until you are ready."
     },
     {
       id: "focus",
       label: "Focus",
       empty: "Nothing in focus. Type a task above, or pull one over from the inbox."
+    },
+    {
+      id: "waiting",
+      label: "Waiting",
+      empty: "Nothing waiting on anyone else. Park a task here when it is blocked and you need it out of focus."
     },
     {
       id: "archive",
@@ -304,7 +309,8 @@
   function normalize(t) {
     const done = !!t.done;
     let at = STAGES.some(s => s.id === t.stage) ? t.stage : "focus";
-    if (at === "inbox" && done) at = "focus";
+    // Only a task in focus can be finished, so a stray flag never hides one away.
+    if (done && at !== "focus" && at !== "archive") at = "focus";
     // A task without a description carries no note key at all, so files written
     // before descriptions existed load, and save again, unchanged.
     const note = typeof t.note === "string" ? t.note.trim() : "";
@@ -782,16 +788,22 @@
       kill.title = "Delete for good (Backspace)";
       return [back, kill];
     }
-    const inbox = t.stage === "inbox";
-    const along = act(
-      inbox ? "\u2192 Focus" : "\u2190 Inbox",
-      () => move(t, inbox ? "focus" : "inbox"),
-      inbox ? "btn primary" : "btn"
-    );
-    along.title = inbox ? "Send to focus (\u2192)" : "Back to inbox (\u2190)";
+    const here = STAGES.findIndex(s => s.id === t.stage);
+    const buttons = [];
+    const step = (to, arrow, primary) => {
+      const b = act(arrow + " " + to.label, () => move(t, to.id), primary ? "btn primary" : "btn");
+      b.title = (arrow === "\u2192" ? "Send to " : "Back to ") + to.label.toLowerCase() + " (" + arrow + ")";
+      buttons.push(b);
+    };
+    const back = STAGES[here - 1];
+    // The point of a waiting task is picking it back up, so that button leads.
+    if (back) step(back, "\u2190", t.stage === "waiting");
+    // Archive has its own button and Backspace, so it is never a forward step.
+    const on = STAGES[here + 1];
+    if (on && on.id !== "archive") step(on, "\u2192", t.stage === "inbox");
     const gone = act("\u00D7", () => move(t, "archive"), "x");
     gone.title = "Move to archive (Backspace)";
-    return [along, gone];
+    return [...buttons, gone];
   }
 
   // ─── editing in place ──────────────────────────────────────────
@@ -919,7 +931,9 @@
         return true;
 
       case "ArrowLeft":
-        restage(t, -1);
+        // Restoring skips waiting, matching the button on an archived row.
+        if (archived) move(t, "focus");
+        else restage(t, -1);
         return true;
 
       case "Backspace":
@@ -941,7 +955,7 @@
     switch (e.key) {
       case "ArrowDown": focusRow(1); return true;
       case "ArrowUp": focusRow(-1); return true;
-      case "1": case "2": case "3": stage = STAGES[+e.key - 1].id; render(); return true;
+      case "1": case "2": case "3": case "4": stage = STAGES[+e.key - 1].id; render(); return true;
       case "[": refilter(-1); return true;
       case "]": refilter(1); return true;
       case "n": case "N": editSection(); return true;
@@ -981,11 +995,11 @@
     ["Tab \u00B7 \u2191 \u2193", "move between tasks"],
     ["Enter", "capture a task, or open the focused one"],
     ["Space", "finish or reopen"],
-    ["\u2192 \u00B7 \u2190", "send along or back: inbox \u2013 focus \u2013 archive"],
+    ["\u2192 \u00B7 \u2190", "send along or back: inbox \u2013 focus \u2013 waiting \u2013 archive"],
     ["Backspace", "archive, or delete if already archived"],
     ["Alt \u2191 \u2193", "reorder"],
     ["M", "move to the next section"],
-    ["1 2 3", "inbox, focus, archive"],
+    ["1 2 3 4", "inbox, focus, waiting, archive"],
     ["[ ]", "previous or next section"],
     ["N \u00B7 R \u00B7 X", "new, rename or remove a section"],
     ["T", "rename the list"],
