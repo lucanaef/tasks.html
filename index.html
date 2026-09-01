@@ -1,1090 +1,1602 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tasks</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none' stroke='%233E7AD6' stroke-width='2.5'><rect x='6.5' y='6.5' width='19' height='19' rx='2.5'/><path d='m10.5 16.5 4 4.5L23 10' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/></svg>">
-<script>
-  // Ahead of the first paint, so a dark reader never gets a white flash.
-  try {
-    const seen = localStorage.getItem("tasks.theme");
-    if (seen === "light" || seen === "dark") document.documentElement.style.colorScheme = seen;
-  } catch {}
-</script>
-<style>
-  /* Hallmark redesign · utilitarian instrument-panel · one cool-blue accent · system + mono, no web fonts */
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tasks</title>
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none' stroke='%232F7DD9' stroke-width='2.5'><rect x='6.5' y='6.5' width='19' height='19' rx='2.5'/><path d='m10.5 16.5 4 4.5L23 10' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <script>
+    try {
+      const seen = localStorage.getItem("tasks.theme");
+      if (seen === "light" || seen === "dark") document.documentElement.style.colorScheme = seen;
+    } catch { }
+  </script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      accent-color: var(--accent);
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+      --paper: light-dark(oklch(98.5% 0.006 256), oklch(15.5% 0.012 256));
+      --paper-2: light-dark(oklch(95.6% 0.006 256), oklch(19.5% 0.015 256));
+      --ink: light-dark(oklch(23% 0.02 258), oklch(91% 0.012 250));
+      --muted: light-dark(oklch(44% 0.021 256), oklch(64% 0.016 252));
+      --line: light-dark(oklch(88% 0.008 256), oklch(28% 0.012 256));
+      --rule: light-dark(oklch(62% 0.016 256), oklch(52% 0.018 256));
+      --accent: light-dark(oklch(48% 0.18 256), oklch(71% 0.14 254));
+      --accent-wash: light-dark(oklch(93% 0.045 256), oklch(27% 0.06 256));
+      --alarm: light-dark(oklch(52% 0.19 25), oklch(71% 0.16 25));
+      --on-accent: light-dark(oklch(99% 0.004 256), oklch(14% 0.01 256));
+      --scrim: oklch(12% 0.02 256 / 0.42);
+      --t-micro: 0.75rem;
+      --t-label: 0.6875rem;
+      --t-chrome: 0.8125rem;
+      --t-body: 1rem;
+      --s1: 0.25rem;
+      --s2: 0.5rem;
+      --s3: 0.75rem;
+      --s4: 1rem;
+      --s5: 1.5rem;
+      --s6: 2rem;
+      --s7: 3rem;
+      --r: 2px;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --dur: 140ms;
+    }
 
-  :root {
-    color-scheme: light dark;
-    accent-color: var(--accent);
-    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
-    --paper:   light-dark(oklch(98.5% 0.004 256), oklch(15.5% 0.012 256));
-    --paper-2: light-dark(oklch(95.6% 0.006 256), oklch(19.5% 0.015 256));
-    --ink:     light-dark(oklch(23% 0.02 258), oklch(91% 0.012 250));
-    --muted:   light-dark(oklch(44% 0.021 256), oklch(64% 0.016 252));
-    --line:    light-dark(oklch(88% 0.008 256), oklch(28% 0.012 256));
-    --rule:    light-dark(oklch(74% 0.014 256), oklch(41% 0.016 256));
-    --accent:      light-dark(oklch(48% 0.18 256), oklch(71% 0.14 254));
-    --accent-wash: light-dark(oklch(93% 0.045 256), oklch(27% 0.06 256));
-    --alarm:       light-dark(oklch(52% 0.19 25), oklch(71% 0.16 25));
-    --on-accent:   light-dark(oklch(99% 0.004 256), oklch(14% 0.01 256));
-    --scrim: oklch(0% 0 0 / 0.42);
-    --t-label: 0.6875rem; --t-chrome: 0.8125rem; --t-body: 1rem;
-    --s1: 0.25rem; --s2: 0.5rem; --s3: 0.75rem; --s4: 1rem; --s5: 1.5rem; --s6: 2rem; --s7: 3rem;
-    --r: 2px; --ease: cubic-bezier(0.16, 1, 0.3, 1); --dur: 140ms;
-  }
+    * {
+      box-sizing: border-box;
+    }
 
-  * { box-sizing: border-box; }
-  [hidden] { display: none !important; }
-  html { overflow-x: clip; scrollbar-gutter: stable; overscroll-behavior: contain; }
-  ::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+    [hidden] {
+      display: none !important;
+    }
 
-  body {
-    max-width: 760px; margin: 0 auto; overflow-x: clip;
-    padding-inline: clamp(var(--s4), 4vw, var(--s6));
-    padding-block: 0 calc(var(--s7) * 2);
-    background: var(--paper); color: var(--ink);
-    font: var(--t-body)/1.45 var(--mono);
-  }
+    html {
+      overflow-x: clip;
+      scrollbar-gutter: stable;
+      overscroll-behavior: contain;
+    }
 
-  /* header bar */
-  .bar {
-    position: sticky; top: 0; z-index: 3; view-transition-name: bar;
-    display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between;
-    gap: var(--s2) var(--s4); padding: var(--s4) 0 var(--s3);
-    background: var(--paper); border-bottom: 1px solid var(--line);
-  }
-  h1 {
-    margin: 0; flex: 1 1 auto; min-width: 0; cursor: text; color: var(--ink);
-    font: 700 var(--t-chrome)/1.15 var(--mono); letter-spacing: 0.2em;
-    text-transform: uppercase; overflow-wrap: anywhere;
-  }
-  .storage {
-    flex: 0 1 auto; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end;
-    gap: var(--s1) var(--s3); text-align: right; color: var(--muted);
-    font: var(--t-label)/1.5 var(--mono); letter-spacing: 0.03em;
-  }
-  .storage.stale { color: var(--alarm); }
-  .problem { flex-basis: 100%; color: var(--alarm); }
-  .nowhere > *:not(.bar, .tray, dialog, [popover]) { display: none; }
-  .nowhere .bar { flex-direction: column; align-items: stretch; gap: var(--s4); padding: var(--s7) 0 var(--s5); border-bottom: 0; }
-  .nowhere .storage { justify-content: flex-start; text-align: left; font-size: var(--t-chrome); }
+    ::selection {
+      background: color-mix(in srgb, var(--accent) 24%, transparent);
+    }
 
-  /* capture */
-  .prompt {
-    display: flex; align-items: center; gap: var(--s2); margin-top: var(--s3); padding: 0 var(--s3);
-    background: var(--paper-2); border: 1px solid var(--rule); border-radius: var(--r);
-    transition: border-color var(--dur) var(--ease);
-  }
-  .prompt:focus-within { border-color: var(--accent); }
-  .prompt:has(:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .cue { font: 600 var(--t-label) var(--mono); color: var(--accent); }
-  #entry {
-    flex: 1; min-width: 0; padding: var(--s3) 0; border: 0; background: none;
-    font: var(--t-body)/1.4 var(--sans); color: var(--ink);
-  }
-  #entry:focus { outline: none; }
-  #entry::placeholder { color: var(--muted); }
+    body {
+      max-width: 760px;
+      margin: 0 auto;
+      overflow-x: clip;
+      padding-inline: clamp(var(--s4), 4vw, var(--s6));
+      padding-block: 0 calc(var(--s7) * 2);
+      background: var(--paper);
+      color: var(--ink);
+      font: var(--t-body)/1.45 var(--mono);
+    }
 
-  /* stages — segmented control */
-  .stages { display: flex; margin-top: var(--s3); border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden; }
-  .stages button {
-    flex: 1; padding: var(--s2); border: 0; border-left: 1px solid var(--rule); cursor: pointer;
-    font: 600 var(--t-label)/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap;
-    color: var(--muted); background: var(--paper);
-    transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease);
-  }
-  .stages button:first-child { border-left: 0; }
-  .stages button:hover { color: var(--ink); background: var(--paper-2); }
-  .stages button.on { color: var(--ink); background: var(--accent-wash); box-shadow: inset 0 -2px 0 var(--accent); }
+    /* header bar */
+    .bar {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      view-transition-name: bar;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--s2) var(--s4);
+      padding: var(--s4) 0 var(--s3);
+      background: var(--paper);
+      border-bottom: 1px solid var(--line);
+    }
 
-  /* sections + buttons */
-  .sections { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-top: var(--s3); }
-  button { font-family: var(--mono); color: var(--ink); background: none; border: 0; cursor: pointer; }
-  button:disabled { opacity: 0.55; cursor: not-allowed; }
-  .btn, .manage, .x, .group, .outcome { font: 600 var(--t-label)/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
-  .btn, .manage, .x {
-    white-space: nowrap;
-    transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
-  }
-  .btn:active, .manage:active, .x:active, .stages button:active { transform: translateY(1px); }
-  .btn { padding: var(--s1) var(--s2); color: var(--muted); background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r); }
-  .btn:hover { color: var(--ink); background: var(--paper-2); border-color: var(--muted); }
-  .primary { color: var(--ink); border-color: var(--accent); background: var(--accent-wash); }
-  .primary:hover { background: color-mix(in oklch, var(--accent) 22%, var(--paper)); }
-  .danger { color: var(--alarm); border-color: var(--alarm); }
-  .danger:hover { color: var(--on-accent); background: var(--alarm); }
-  .sections .btn { padding: var(--s1) var(--s2); color: var(--muted); border-color: var(--line); background: none; }
-  .sections .btn:hover { color: var(--ink); border-color: var(--rule); }
-  .sections .btn.on { color: var(--ink); border-color: var(--accent); background: var(--accent-wash); }
-  .manage {
-    display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 var(--s2);
-    color: var(--muted); border: 1px dashed var(--line); border-radius: var(--r); font-size: 13px;
-  }
-  .manage:hover { color: var(--ink); border-color: var(--rule); border-style: solid; background: var(--paper-2); }
-  .x { padding: var(--s1) var(--s2); color: var(--muted); border: 1px solid transparent; border-radius: var(--r); font-size: 13px; line-height: 1; }
-  .x:hover { color: var(--alarm); border-color: var(--alarm); }
+    h1 {
+      margin: 0;
+      flex: 1 1 auto;
+      min-width: 0;
+      cursor: text;
+      color: var(--ink);
+      font: 700 var(--t-chrome)/1.15 var(--mono);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      overflow-wrap: anywhere;
+    }
 
-  /* list */
-  ul { list-style: none; margin: var(--s5) 0 0; padding: 0; border-top: 1px solid var(--line); }
-  ul:empty { display: none; }
-  li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); padding: var(--s3) var(--s2); border-bottom: 1px solid var(--line); }
-  li.dragging { opacity: 0.4; }
-  li.group { padding: var(--s4) var(--s2) var(--s1); border-bottom: 0; color: var(--muted); line-height: 1.2; letter-spacing: 0.15em; }
-  .main { display: flex; align-items: center; gap: var(--s3); flex: 1 1 260px; min-width: 0; }
-  .grip { color: var(--line); font-size: 12px; line-height: 1; cursor: grab; user-select: none; }
-  li:hover .grip { color: var(--muted); }
-  .box { width: 16px; height: 16px; flex: none; margin: 0; }
-  .label { flex: 1; min-width: 0; cursor: pointer; color: var(--ink); font: var(--t-body)/1.4 var(--sans); overflow-wrap: anywhere; text-wrap: pretty; }
-  li.done .label { color: var(--muted); text-decoration: line-through; }
-  .mark { flex: none; color: var(--accent); font: var(--t-label) var(--mono); }
-  .outcome { flex: none; width: 7.5rem; color: var(--muted); line-height: 1.5; letter-spacing: 0.03em; }
-  .outcome.finished { color: var(--accent); }
-  .empty { margin: 0; padding: var(--s7) var(--s4); text-align: center; color: var(--muted); font: var(--t-chrome) var(--mono); }
+    .storage {
+      flex: 0 1 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: flex-end;
+      gap: var(--s1) var(--s3);
+      text-align: right;
+      color: var(--muted);
+      font: var(--t-label)/1.5 var(--mono);
+      letter-spacing: 0.03em;
+    }
 
-  /* tray + focus */
-  .tray { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-top: var(--s5); padding-top: var(--s3); border-top: 1px solid var(--line); }
-  .tray .manage { border-style: solid; border-color: var(--line); }
-  #sweep { margin-left: auto; }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  li:focus { outline: none; background: var(--paper-2); box-shadow: inset 3px 0 0 var(--accent); }
+    .storage.stale {
+      color: var(--alarm);
+    }
 
-  /* overlays */
-  #help { width: min(460px, calc(100% - var(--s6))); padding: var(--s5); color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r); }
-  #help:popover-open { display: grid; grid-template-columns: max-content 1fr; align-items: baseline; gap: var(--s2) var(--s4); }
-  #help h2 { grid-column: 1 / -1; margin: 0 0 var(--s2); color: var(--muted); font: 600 var(--t-label)/1.15 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; }
-  #help kbd {
-    color: var(--ink); white-space: nowrap; border: 1px solid var(--line); border-radius: var(--r); padding: 0.15em 0.4em;
-    font: var(--t-label)/1.4 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
-  }
-  #help span { font: var(--t-chrome)/1.4 var(--mono); color: var(--muted); }
-  #keys { anchor-name: --keys; }
-  #help {
-    position-anchor: --keys; position-area: block-end span-inline-end;
-    position-try-fallbacks: flip-block, flip-inline; inset: auto; margin-block-start: var(--s2);
-  }
-  dialog { width: min(420px, calc(100% - var(--s6))); padding: var(--s5); color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r); }
-  #detail { width: min(540px, calc(100% - var(--s6))); }
-  :is(dialog, #help)::backdrop { background: var(--scrim); backdrop-filter: blur(2px); }
+    .problem {
+      flex-basis: 100%;
+      color: var(--alarm);
+    }
 
-  /* Fade + scale dialog/popover through the top layer. Plain selector list, not :is() --
-     :is() would take specificity from #help and outrank dialog[open]. */
-  dialog, #help {
-    opacity: 0; scale: 0.98;
-    transition: opacity var(--dur) var(--ease), scale var(--dur) var(--ease), display var(--dur) allow-discrete, overlay var(--dur) allow-discrete;
-  }
-  dialog[open], #help:popover-open { opacity: 1; scale: 1; }
-  dialog::backdrop, #help::backdrop {
-    opacity: 0;
-    transition: opacity var(--dur) var(--ease), display var(--dur) allow-discrete, overlay var(--dur) allow-discrete;
-  }
-  dialog[open]::backdrop, #help:popover-open::backdrop { opacity: 1; }
-  @starting-style {
-    dialog[open], #help:popover-open { opacity: 0; scale: 0.98; }
-    dialog[open]::backdrop, #help:popover-open::backdrop { opacity: 0; }
-  }
+    .nowhere>*:not(.bar, .tray, dialog, [popover]) {
+      display: none;
+    }
 
-  #askText { margin: 0; font: var(--t-body)/1.5 var(--sans); color: var(--ink); }
-  #askInput, #detailText, #detailNote {
-    display: block; width: 100%; margin-top: var(--s3); padding: var(--s2) var(--s3);
-    font: var(--t-body)/1.4 var(--sans); color: var(--ink); background: var(--paper-2);
-    border: 1px solid var(--rule); border-radius: var(--r);
-  }
-  :is(#askInput, #detailText, #detailNote):focus { border-color: var(--accent); }
-  #detailHead { margin: 0; color: var(--muted); font: 600 var(--t-label)/1.15 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; }
-  #detailNote { font: var(--t-body)/1.5 var(--sans); resize: vertical; field-sizing: content; min-height: 6lh; max-height: 40vh; }
-  .choices { display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: var(--s2); margin-top: var(--s5); }
+    .nowhere .bar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--s4);
+      padding: var(--s7) 0 var(--s5);
+      border-bottom: 0;
+    }
 
-  ::view-transition-group(*) { animation-duration: 160ms; }
-  @media (prefers-reduced-motion: reduce) {
-    *, ::before, ::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
-    dialog, #help { scale: 1; }
-  }
-  @media (width <= 560px) {
-    .storage { justify-content: flex-start; text-align: left; flex-basis: 100%; }
-    .grip { display: none; }
-    .main { flex-basis: 100%; }
-    .outcome { width: auto; }
-    .stages button { padding: var(--s2) var(--s1); letter-spacing: 0.04em; }
-  }
-</style>
+    .nowhere .storage {
+      justify-content: flex-start;
+      text-align: left;
+      font-size: var(--t-chrome);
+    }
+
+    /* capture */
+    .prompt {
+      display: flex;
+      align-items: center;
+      gap: var(--s2);
+      margin-top: var(--s3);
+      padding: 0 var(--s3);
+      background: var(--paper-2);
+      border: 1px solid var(--rule);
+      border-radius: var(--r);
+      transition: border-color var(--dur) var(--ease);
+    }
+
+    .prompt:focus-within {
+      border-color: var(--accent);
+    }
+
+    .prompt:has(:focus-visible) {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .cue {
+      font: 600 var(--t-label) var(--mono);
+      color: var(--accent);
+    }
+
+    #entry {
+      flex: 1;
+      min-width: 0;
+      padding: var(--s3) 0;
+      border: 0;
+      background: none;
+      font: var(--t-body)/1.4 var(--sans);
+      color: var(--ink);
+    }
+
+    #entry:focus {
+      outline: none;
+    }
+
+    #entry::placeholder {
+      color: var(--muted);
+    }
+
+    /* stages — segmented control */
+    .stages {
+      display: flex;
+      margin-top: var(--s3);
+      border: 1px solid var(--rule);
+      border-radius: var(--r);
+      overflow: hidden;
+    }
+
+    .stages button {
+      flex: 1;
+      padding: var(--s2);
+      border: 0;
+      border-left: 1px solid var(--rule);
+      cursor: pointer;
+      font: 600 var(--t-label)/1 var(--mono);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      color: var(--muted);
+      background: var(--paper);
+      transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+    }
+
+    .stages button:first-child {
+      border-left: 0;
+    }
+
+    .stages button:hover {
+      color: var(--ink);
+      background: var(--paper-2);
+    }
+
+    .stages button.on {
+      color: var(--ink);
+      background: var(--accent-wash);
+      box-shadow: inset 0 -2px 0 var(--accent);
+    }
+
+    /* sections + buttons */
+    .sections {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--s2);
+      margin-top: var(--s3);
+    }
+
+    button {
+      font-family: var(--mono);
+      color: var(--ink);
+      background: none;
+      border: 0;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .btn,
+    .manage,
+    .x,
+    .group,
+    .outcome {
+      font: 600 var(--t-label)/1 var(--mono);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .btn,
+    .manage,
+    .x {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 24px;
+      white-space: nowrap;
+      transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+    }
+
+    .btn:active,
+    .manage:active,
+    .x:active,
+    .stages button:active {
+      transform: translateY(1px);
+    }
+
+    .btn {
+      padding: var(--s1) var(--s2);
+      color: var(--muted);
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-radius: var(--r);
+    }
+
+    .btn:hover {
+      color: var(--ink);
+      background: var(--paper-2);
+      border-color: var(--muted);
+    }
+
+    .primary {
+      color: var(--ink);
+      border-color: var(--accent);
+      background: var(--accent-wash);
+    }
+
+    .primary:hover {
+      background: color-mix(in oklch, var(--accent) 22%, var(--paper));
+    }
+
+    .danger {
+      color: var(--alarm);
+      border-color: var(--alarm);
+    }
+
+    .danger:hover {
+      color: var(--on-accent);
+      background: var(--alarm);
+    }
+
+    .sections .btn {
+      padding: var(--s1) var(--s2);
+      color: var(--muted);
+      border-color: var(--rule);
+      background: none;
+    }
+
+    .sections .btn:hover {
+      color: var(--ink);
+      border-color: var(--muted);
+    }
+
+    .sections .btn.on {
+      color: var(--ink);
+      border-color: var(--accent);
+      background: var(--accent-wash);
+    }
+
+    .manage {
+      display: inline-grid;
+      place-items: center;
+      min-width: 24px;
+      height: 24px;
+      padding: 0 var(--s2);
+      color: var(--muted);
+      border: 1px dashed var(--rule);
+      border-radius: var(--r);
+      font-size: var(--t-chrome);
+    }
+
+    .manage:hover {
+      color: var(--ink);
+      border-color: var(--muted);
+      border-style: solid;
+      background: var(--paper-2);
+    }
+
+    .x {
+      padding: var(--s1) var(--s2);
+      color: var(--muted);
+      border: 1px solid transparent;
+      border-radius: var(--r);
+      font-size: var(--t-chrome);
+      line-height: 1;
+    }
+
+    .x:hover {
+      color: var(--alarm);
+      border-color: var(--alarm);
+    }
+
+    /* list */
+    ul {
+      list-style: none;
+      margin: var(--s5) 0 0;
+      padding: 0;
+      border-top: 1px solid var(--line);
+    }
+
+    ul:empty {
+      display: none;
+    }
+
+    li {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--s2) var(--s3);
+      padding: var(--s3) var(--s2);
+      border-bottom: 1px solid var(--line);
+    }
+
+    li.dragging {
+      opacity: 0.4;
+    }
+
+    li.group {
+      padding: var(--s4) var(--s2) var(--s1);
+      border-bottom: 0;
+      color: var(--muted);
+      line-height: 1.2;
+      letter-spacing: 0.15em;
+    }
+
+    .main {
+      display: flex;
+      align-items: center;
+      gap: var(--s3);
+      flex: 1 1 260px;
+      min-width: 0;
+    }
+
+    .grip {
+      color: var(--muted);
+      font-size: var(--t-micro);
+      line-height: 1;
+      cursor: grab;
+      user-select: none;
+    }
+
+    li:hover .grip {
+      color: var(--ink);
+    }
+
+    .box {
+      width: 20px;
+      height: 20px;
+      flex: none;
+      margin: 0;
+    }
+
+    .label {
+      flex: 1;
+      min-width: 0;
+      cursor: pointer;
+      color: var(--ink);
+      font: var(--t-body)/1.4 var(--sans);
+      overflow-wrap: anywhere;
+      text-wrap: pretty;
+    }
+
+    li.done .label {
+      color: var(--muted);
+      text-decoration: line-through;
+    }
+
+    .mark {
+      flex: none;
+      color: var(--accent);
+      font: var(--t-label) var(--mono);
+    }
+
+    .outcome {
+      flex: none;
+      width: 7.5rem;
+      color: var(--muted);
+      line-height: 1.5;
+      letter-spacing: 0.03em;
+    }
+
+    .outcome.finished {
+      color: var(--accent);
+    }
+
+    .empty {
+      margin: 0;
+      padding: var(--s7) var(--s4);
+      text-align: center;
+      color: var(--muted);
+      font: var(--t-chrome) var(--mono);
+    }
+
+    /* tray + focus */
+    .tray {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--s2);
+      margin-top: var(--s5);
+      padding-top: var(--s3);
+      border-top: 1px solid var(--line);
+    }
+
+    .tray .manage {
+      border-style: solid;
+      border-color: var(--rule);
+    }
+
+    #sweep {
+      margin-left: auto;
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    li:focus {
+      outline: none;
+      background: var(--paper-2);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    /* overlays */
+    #help {
+      width: min(460px, calc(100% - var(--s6)));
+      padding: var(--s5);
+      color: var(--ink);
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-radius: var(--r);
+    }
+
+    #help:popover-open {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      align-items: baseline;
+      gap: var(--s2) var(--s4);
+    }
+
+    #help h2 {
+      grid-column: 1 / -1;
+      margin: 0 0 var(--s2);
+      color: var(--muted);
+      font: 600 var(--t-label)/1.15 var(--mono);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    #help kbd {
+      color: var(--ink);
+      white-space: nowrap;
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 0.15em 0.4em;
+      font: var(--t-label)/1.4 var(--mono);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    #help span {
+      font: var(--t-chrome)/1.4 var(--mono);
+      color: var(--muted);
+    }
+
+    #keys {
+      anchor-name: --keys;
+    }
+
+    #help {
+      position-anchor: --keys;
+      position-area: block-end span-inline-end;
+      position-try-fallbacks: flip-block, flip-inline;
+      inset: auto;
+      margin-block-start: var(--s2);
+    }
+
+    dialog {
+      width: min(420px, calc(100% - var(--s6)));
+      padding: var(--s5);
+      color: var(--ink);
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-radius: var(--r);
+    }
+
+    #detail {
+      width: min(540px, calc(100% - var(--s6)));
+    }
+
+    :is(dialog, #help)::backdrop {
+      background: var(--scrim);
+      backdrop-filter: blur(2px);
+    }
+
+    dialog,
+    #help {
+      opacity: 0;
+      scale: 0.98;
+      transition: opacity var(--dur) var(--ease), scale var(--dur) var(--ease), display var(--dur) allow-discrete, overlay var(--dur) allow-discrete;
+    }
+
+    dialog[open],
+    #help:popover-open {
+      opacity: 1;
+      scale: 1;
+    }
+
+    dialog::backdrop,
+    #help::backdrop {
+      opacity: 0;
+      transition: opacity var(--dur) var(--ease), display var(--dur) allow-discrete, overlay var(--dur) allow-discrete;
+    }
+
+    dialog[open]::backdrop,
+    #help:popover-open::backdrop {
+      opacity: 1;
+    }
+
+    @starting-style {
+
+      dialog[open],
+      #help:popover-open {
+        opacity: 0;
+        scale: 0.98;
+      }
+
+      dialog[open]::backdrop,
+      #help:popover-open::backdrop {
+        opacity: 0;
+      }
+    }
+
+    #askText {
+      margin: 0;
+      font: var(--t-body)/1.5 var(--sans);
+      color: var(--ink);
+    }
+
+    #askInput,
+    #detailText,
+    #detailNote {
+      display: block;
+      width: 100%;
+      margin-top: var(--s3);
+      padding: var(--s2) var(--s3);
+      font: var(--t-body)/1.4 var(--sans);
+      color: var(--ink);
+      background: var(--paper-2);
+      border: 1px solid var(--rule);
+      border-radius: var(--r);
+    }
+
+    :is(#askInput, #detailText, #detailNote):focus {
+      border-color: var(--accent);
+    }
+
+    #detailHead {
+      margin: 0;
+      color: var(--muted);
+      font: 600 var(--t-label)/1.15 var(--mono);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    #detailNote {
+      font: var(--t-body)/1.5 var(--sans);
+      resize: vertical;
+      field-sizing: content;
+      min-height: 6lh;
+      max-height: 40vh;
+    }
+
+    .choices {
+      display: flex;
+      flex-direction: row-reverse;
+      justify-content: flex-start;
+      gap: var(--s2);
+      margin-top: var(--s5);
+    }
+
+    ::view-transition-group(*) {
+      animation-duration: var(--dur);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+
+      *,
+      ::before,
+      ::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+
+      dialog,
+      #help {
+        scale: 1;
+      }
+    }
+
+    @media (pointer: coarse) {
+
+      .btn,
+      .manage,
+      .x,
+      .stages button {
+        min-height: 44px;
+      }
+
+      .manage {
+        height: auto;
+      }
+
+      .box {
+        width: 24px;
+        height: 24px;
+      }
+    }
+
+    @media (width <=560px) {
+      .storage {
+        justify-content: flex-start;
+        text-align: left;
+        flex-basis: 100%;
+      }
+
+      .grip {
+        display: none;
+      }
+
+      .main {
+        flex-basis: 100%;
+      }
+
+      .outcome {
+        width: auto;
+      }
+
+      .stages button {
+        padding: var(--s2) var(--s1);
+        letter-spacing: 0.04em;
+      }
+    }
+  </style>
 </head>
+
 <body>
-<header class="bar">
-  <h1 id="title" title="Click to rename (T)">Tasks</h1>
-  <div class="storage" id="storage" aria-live="polite"></div>
-</header>
-<div class="deck">
-  <div class="prompt">
-    <span class="cue" aria-hidden="true">+</span>
-    <input id="entry" type="text" aria-label="New task" placeholder="What needs doing?" autocomplete="off">
+  <header class="bar">
+    <h1 id="title" title="Click to rename (T)">Tasks</h1>
+    <div class="storage" id="storage" aria-live="polite"></div>
+  </header>
+  <div class="deck">
+    <div class="prompt">
+      <span class="cue" aria-hidden="true">+</span>
+      <input id="entry" type="text" aria-label="New task" placeholder="What needs doing?" autocomplete="off">
+    </div>
+    <div class="stages" id="stages"></div>
+    <div class="sections" id="sections"></div>
   </div>
-  <div class="stages" id="stages"></div>
-  <div class="sections" id="sections"></div>
-</div>
-<ul id="list"></ul>
-<p class="empty" id="empty" hidden></p>
-<footer class="tray">
-  <button id="keys" type="button" class="manage" popovertarget="help" title="Keyboard shortcuts (?)">?</button>
-  <button id="theme" type="button" class="manage"></button>
-  <button id="undo" type="button" class="btn" title="Undo (U)" hidden>Undo</button>
-  <button id="sweep" type="button" class="btn" title="Archive finished (S)" hidden>Archive finished</button>
-</footer>
-<div id="help" popover></div>
-<dialog id="detail" aria-labelledby="detailHead">
-  <form method="dialog">
-    <h2 id="detailHead">Task</h2>
-    <input id="detailText" type="text" aria-label="Task name" autocomplete="off" placeholder="What needs doing?">
-    <textarea id="detailNote" aria-label="Description" placeholder="Anything worth remembering about it"></textarea>
-    <div class="choices">
-      <button type="submit" value="ok" class="btn primary">Save</button>
-      <button type="button" class="btn" command="close" commandfor="detail">Cancel</button>
-    </div>
-  </form>
-</dialog>
-<dialog id="ask" aria-labelledby="askText">
-  <form method="dialog">
-    <p id="askText"></p>
-    <input id="askInput" type="text" aria-label="Value" maxlength="40" autocomplete="off" hidden>
-    <div class="choices">
-      <button type="submit" id="askGo" value="ok" class="btn primary">Save</button>
-      <button type="button" class="btn" command="close" commandfor="ask">Cancel</button>
-    </div>
-  </form>
-</dialog>
-<script>
-(function () {
-  "use strict";
-  const el = Object.fromEntries(["title", "list", "empty", "entry", "sections", "stages", "storage", "sweep", "undo", "theme", "help", "ask", "askText", "askInput", "askGo", "detail", "detailText", "detailNote"]
-    .map(id => [id, document.getElementById(id)]));
+  <ul id="list"></ul>
+  <p class="empty" id="empty" hidden></p>
+  <footer class="tray">
+    <button id="keys" type="button" class="manage" popovertarget="help" title="Keyboard shortcuts (?)"
+      aria-label="Keyboard shortcuts">?</button>
+    <button id="theme" type="button" class="manage"></button>
+    <button id="undo" type="button" class="btn" title="Undo (U)" hidden>Undo</button>
+    <button id="sweep" type="button" class="btn" title="Archive finished (S)" hidden>Archive finished</button>
+  </footer>
+  <div id="help" popover></div>
+  <dialog id="detail" aria-labelledby="detailHead">
+    <form method="dialog">
+      <h2 id="detailHead">Task</h2>
+      <input id="detailText" type="text" aria-label="Task name" autocomplete="off" placeholder="What needs doing?">
+      <textarea id="detailNote" aria-label="Description" placeholder="Anything worth remembering about it"></textarea>
+      <div class="choices">
+        <button type="submit" value="ok" class="btn primary">Save</button>
+        <button type="button" class="btn" command="close" commandfor="detail">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="ask" aria-labelledby="askText">
+    <form method="dialog">
+      <p id="askText"></p>
+      <input id="askInput" type="text" aria-label="Value" maxlength="40" autocomplete="off" hidden>
+      <div class="choices">
+        <button type="submit" id="askGo" value="ok" class="btn primary">Save</button>
+        <button type="button" class="btn" command="close" commandfor="ask">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+  <script>
+    (function () {
+      "use strict";
+      const el = Object.fromEntries(["title", "list", "empty", "entry", "sections", "stages", "storage", "sweep", "undo", "theme", "help", "ask", "askText", "askInput", "askGo", "detail", "detailText", "detailNote"]
+        .map(id => [id, document.getElementById(id)]));
 
-  // ─── elements ──────────────────────────────────────────────────
+      // ─── elements ──────────────────────────────────────────────────
 
-  function h(tag, props, kids) {
-    const node = Object.assign(document.createElement(tag), props);
-    if (kids) node.append(...kids.filter(Boolean));
-    return node;
-  }
-
-  const now = () => new Date().toISOString();
-  const uid = () => crypto.randomUUID();
-
-  const STAGES = [
-    { id: "inbox",   label: "Inbox",   empty: "Nothing captured yet." },
-    { id: "focus",   label: "Focus",   empty: "Nothing in focus." },
-    { id: "waiting", label: "Waiting", empty: "Nothing waiting." },
-    { id: "archive", label: "Archive", empty: "Nothing archived." }
-  ];
-
-  // ─── state ─────────────────────────────────────────────────────
-
-  let tasks = [];
-  let sections = [];
-  let title = "Tasks";
-  let stage = "focus";
-  let filter = "all";
-
-  const byId = (id) => tasks.find(t => t.id === id);
-
-  function normalize(t) {
-    const done = !!t.done;
-    let at = STAGES.some(s => s.id === t.stage) ? t.stage : "focus";
-    // Only a task in focus can be finished, so a stray flag never hides one away.
-    if (done && at !== "focus" && at !== "archive") at = "focus";
-    // A task without a description carries no note key at all, so files written
-    // before descriptions existed load, and save again, unchanged.
-    const note = typeof t.note === "string" ? t.note.trim() : "";
-    return { id: t.id || uid(), text: String(t.text), done, stage: at, sectionId: t.sectionId || null, at: t.at || now(), ...(note && { note }) };
-  }
-
-  function hydrate(data) {
-    title = (typeof data.title === "string" && data.title.trim()) || "Tasks";
-    sections = (data.sections || [])
-      .filter(s => s && typeof s.name === "string")
-      .map(s => ({ id: s.id || uid(), name: s.name.slice(0, 40) }));
-    const known = new Set(sections.map(s => s.id));
-    tasks = (data.tasks || [])
-      .filter(t => t && typeof t.text === "string")
-      .map(normalize)
-      .map(t => (known.has(t.sectionId) ? t : Object.assign(t, { sectionId: null })));
-  }
-
-  function visible() {
-    const rows = tasks.filter(t => t.stage === stage && (filter === "all" || t.sectionId === filter));
-    return stage === "archive" ? rows.toSorted((a, b) => b.at.localeCompare(a.at)) : rows;
-  }
-
-  const when = (iso) => new Date(iso).toDateString() === new Date().toDateString()
-    ? "today" : new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-
-  // ─── the file ──────────────────────────────────────────────────
-
-  const TYPES = [{ description: "Tasks data", accept: { "application/json": [".json"] } }];
-  const supported = typeof window.showSaveFilePicker === "function";
-  let handle = null, savedAt = null, problem = "", timer = null, stalled = null;
-
-  // ─── the file, next time ───────────────────────────────────────
-
-  // A handle keeps in IndexedDB, so the file comes back without the picker. A page
-  // opened from disk has no database, and fails quietly into asking for a file.
-  const DB = "tasks", STORE = "handle", KEY = "file";
-  let conn = null;
-
-  function database() {
-    conn ||= new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB, 1);
-      req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-    return conn;
-  }
-
-  const tx = (mode, run) => database().then(db => new Promise((resolve, reject) => {
-    const req = run(db.transaction(STORE, mode).objectStore(STORE));
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  }));
-
-  const remember = (h) => tx("readwrite", s => s.put(h, KEY)).catch(() => {});
-  const remembered = () => tx("readonly", s => s.get(KEY)).catch(() => null);
-
-  // ─── saving and undo ───────────────────────────────────────────
-
-  const snapshot = (indent) => JSON.stringify({ title, sections, tasks }, null, indent);
-  let past = [], current = snapshot();
-
-  // Every data mutation ends here, so history is recorded in one place.
-  function save(label) {
-    const next = snapshot();
-    if (next !== current) {
-      past.push({ data: current, label: label || "change" });
-      if (past.length > 40) past.shift();
-      current = next;
-    }
-    flush();
-  }
-
-  function undo() {
-    if (!past.length) return;
-    current = past.pop().data;
-    hydrate(JSON.parse(current));
-    if (filter !== "all" && !sections.some(s => s.id === filter)) filter = "all";
-    flush();
-  }
-
-  function flush() {
-    clearTimeout(timer);
-    if (handle) timer = setTimeout(() => { timer = null; write(); }, 300);
-    render();
-  }
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden && timer) { clearTimeout(timer); timer = null; write(); }
-  });
-
-  // Changes coming faster than a write completes would start a second stream on a
-  // file the first one still holds. Keep one write in flight, and follow it with a
-  // single catch-up write for whatever changed meanwhile.
-  let writing = null, pending = false;
-
-  function write() {
-    if (writing) { pending = true; return writing; }
-    writing = writeOnce().finally(() => {
-      writing = null;
-      if (pending) { pending = false; write(); }
-    });
-    return writing;
-  }
-
-  async function writeOnce() {
-    try {
-      const stream = await handle.createWritable();
-      await stream.write(snapshot(2));
-      await stream.close();
-      savedAt = new Date();
-      problem = "";
-      stalled = null;
-    } catch (err) {
-      if (err.name === "SecurityError" || err.name === "NotAllowedError") return lock();
-      problem = err.name + ": " + (err.message || "write failed");
-    }
-    renderStorage();
-  }
-
-  // The browser lets go of a file once the tab has sat idle, and the writes here
-  // are debounced or fire on the way out, so none of them can recover it. Park the
-  // file instead and let the button below, which has a click behind it, sort it out.
-  function lock() {
-    stalled = {
-      note: "Your browser let go of " + handle.name + ". Point at the same file again to carry on saving.",
-      go: "Choose " + handle.name + " again",
-      act: reconnect
-    };
-    renderStorage();
-  }
-
-  // requestPermission() refuses to run on a page whose origin is opaque, which is
-  // what a page opened straight from disk has. Picking the same file again grants
-  // the same thing without asking, and works either way.
-  async function reconnect() {
-    try {
-      const asked = await handle.requestPermission({ mode: "readwrite" })
-        .catch(err => { if (err.name === "SecurityError") return "prompt"; throw err; });
-      if (asked !== "granted") {
-        handle = await window.showSaveFilePicker({ suggestedName: handle.name, types: TYPES });
-        await remember(handle);
+      function h(tag, props, kids) {
+        const node = Object.assign(document.createElement(tag), props);
+        if (kids) node.append(...kids.filter(Boolean));
+        return node;
       }
-      await write();
-    } catch (err) {
-      if (err.name === "AbortError") return;
-      problem = err.name + ": " + (err.message || "unknown error");
-      renderStorage();
-    }
-  }
 
-  const picker = (fn) => async () => {
-    try {
-      await fn();
-      await remember(handle);
-      problem = "";
-      past = [];
-      current = snapshot();
-      await write();
-      render();
-      el.entry.focus();
-    } catch (err) {
-      if (err.name === "AbortError") return;
-      problem = err.name === "SecurityError"
-        ? "Your browser blocked the file picker on a page opened straight from disk."
-        : err.name + ": " + (err.message || "unknown error");
-      renderStorage();
-    }
-  };
+      // Filenames land inside nowrap buttons, where a long one would clip off the edge.
+      const short = (name) => name.length > 24 ? name.slice(0, 23) + "\u2026" : name;
+      const now = () => new Date().toISOString();
+      const uid = () => crypto.randomUUID();
 
-  const newFile = picker(async () => {
-    handle = await window.showSaveFilePicker({ suggestedName: "tasks.json", types: TYPES });
-  });
+      const STAGES = [
+        { id: "inbox", label: "Inbox", empty: "Nothing captured yet." },
+        { id: "focus", label: "Focus", empty: "Nothing in focus." },
+        { id: "waiting", label: "Waiting", empty: "Nothing waiting." },
+        { id: "archive", label: "Archive", empty: "Nothing archived." }
+      ];
 
-  const openFile = picker(async () => {
-    const [picked] = await window.showOpenFilePicker({ types: TYPES, multiple: false });
-    const text = await (await picked.getFile()).text();
-    hydrate(text.trim() ? JSON.parse(text) : {});
-    handle = picked;
-    filter = "all";
-  });
+      // ─── state ─────────────────────────────────────────────────────
 
-  // ─── picking the file back up ──────────────────────────────────
+      let tasks = [];
+      let sections = [];
+      let title = "Tasks";
+      let stage = "focus";
+      let filter = "all";
 
-  async function restore() {
-    if (!supported) return;
-    const kept = await remembered();
-    if (!kept) return;
-    handle = kept;
-    try {
-      if (await handle.queryPermission({ mode: "readwrite" }) === "granted") return load();
-    } catch {
-      handle = null;
-      return;
-    }
-    stalled = {
-      note: "Picking up where you left off in " + handle.name + ".",
-      go: "Open " + handle.name,
-      act: resume
-    };
-    renderStorage();
-  }
+      const byId = (id) => tasks.find(t => t.id === id);
 
-  async function resume() {
-    try {
-      if (await handle.requestPermission({ mode: "readwrite" }) !== "granted") {
-        problem = "Nothing can be saved until " + handle.name + " is open again.";
-        return renderStorage();
+      function normalize(t) {
+        const done = !!t.done;
+        let at = STAGES.some(s => s.id === t.stage) ? t.stage : "focus";
+        // Only a task in focus can be finished, so a stray flag never hides one away.
+        if (done && at !== "focus" && at !== "archive") at = "focus";
+        // A task without a description carries no note key at all, so files written
+        // before descriptions existed load, and save again, unchanged.
+        const note = typeof t.note === "string" ? t.note.trim() : "";
+        return { id: t.id || uid(), text: String(t.text), done, stage: at, sectionId: t.sectionId || null, at: t.at || now(), ...(note && { note }) };
       }
-      await load();
-    } catch (err) {
-      if (err.name !== "AbortError") lost(err);
-    }
-  }
 
-  // Writes nothing back, unlike picker(): opening a file should not touch it.
-  async function load() {
-    try {
-      const text = await (await handle.getFile()).text();
-      hydrate(text.trim() ? JSON.parse(text) : {});
-    } catch (err) {
-      return lost(err);
-    }
-    past = [];
-    current = snapshot();
-    stalled = null;
-    problem = "";
-    render();
-    el.entry.focus();
-  }
+      function hydrate(data) {
+        title = (typeof data.title === "string" && data.title.trim()) || "Tasks";
+        sections = (data.sections || [])
+          .filter(s => s && typeof s.name === "string")
+          .map(s => ({ id: s.id || uid(), name: s.name.slice(0, 40) }));
+        const known = new Set(sections.map(s => s.id));
+        tasks = (data.tasks || [])
+          .filter(t => t && typeof t.text === "string")
+          .map(normalize)
+          .map(t => (known.has(t.sectionId) ? t : Object.assign(t, { sectionId: null })));
+      }
 
-  function lost(err) {
-    if (err.name === "NotFoundError") {
-      problem = handle.name + " has moved or gone. Open it where it lives now, or start a new one.";
-      handle = null;
-      remember(null);
-    } else {
-      problem = err.name + ": " + (err.message || "the file could not be read");
-    }
-    stalled = null;
-    renderStorage();
-  }
+      function visible() {
+        const rows = tasks.filter(t => t.stage === stage && (filter === "all" || t.sectionId === filter));
+        return stage === "archive" ? rows.toSorted((a, b) => b.at.localeCompare(a.at)) : rows;
+      }
 
-  // ─── the storage line ──────────────────────────────────────────
+      const when = (iso) => new Date(iso).toDateString() === new Date().toDateString()
+        ? "today" : new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 
-  function renderStorage() {
-    document.body.classList.toggle("nowhere", !handle);
-    el.storage.className = handle && !stalled ? "storage" : "storage stale";
-    // With no file yet the two buttons below say it all, so there is nothing to write.
-    el.storage.replaceChildren(handle
-      ? stalled
-        ? stalled.note
-        : "Saving to " + handle.name + (savedAt ? " \u00B7 saved " + savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "")
-      : supported
-        ? ""
-        : "Saving straight to a file needs Chrome or Edge on the desktop, so nothing here can be kept.");
-    if (handle && stalled) el.storage.append(
-      h("button", { type: "button", className: "btn primary", textContent: stalled.go, onclick: stalled.act }));
-    if (!handle && supported) el.storage.append(
-      h("button", { type: "button", className: "btn primary", textContent: "Open a file", onclick: openFile }),
-      h("button", { type: "button", className: "btn", textContent: "Start a new file", onclick: newFile }));
-    if (problem) el.storage.append(h("span", { className: "problem", textContent: problem }));
-  }
+      // ─── the file ──────────────────────────────────────────────────
 
-  // ─── asking ────────────────────────────────────────────────────
+      const TYPES = [{ description: "Tasks data", accept: { "application/json": [".json"] } }];
+      const supported = typeof window.showSaveFilePicker === "function";
+      let handle = null, savedAt = null, problem = "", timer = null, stalled = null;
 
-  // <form method="dialog"> closes the dialog and reports which button
-  // submitted it, so nothing here has to wire up the accept path.
-  function ask(opts) {
-    el.askText.textContent = opts.text;
-    el.askInput.hidden = !opts.name;
-    el.askInput.value = opts.name ? opts.value || "" : "";
-    el.askGo.textContent = opts.go || "Save";
-    el.askGo.classList.toggle("primary", !opts.danger);
-    el.askGo.classList.toggle("danger", !!opts.danger);
-    el.ask.returnValue = "";
-    el.ask.showModal();
-    if (opts.name) el.askInput.select();
-    return new Promise(resolve => el.ask.addEventListener("close", () => {
-      if (el.ask.returnValue !== "ok") return resolve(null);
-      resolve(opts.name ? el.askInput.value.trim() || null : true);
-    }, { once: true }));
-  }
+      // ─── the file, next time ───────────────────────────────────────
 
+      // A handle keeps in IndexedDB, so the file comes back without the picker. A page
+      // opened from disk has no database, and fails quietly into asking for a file.
+      const DB = "tasks", STORE = "handle", KEY = "file";
+      let conn = null;
 
-  // ─── a task up close ───────────────────────────────────────────
+      function database() {
+        conn ||= new Promise((resolve, reject) => {
+          const req = indexedDB.open(DB, 1);
+          req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+        return conn;
+      }
 
-  // Same accept path as ask(): the form closes the dialog and reports
-  // which button submitted it, and Escape leaves returnValue empty.
-  function detail(t) {
-    el.detailText.value = t.text;
-    el.detailNote.value = t.note || "";
-    el.detail.returnValue = "";
-    el.detail.showModal();
-    el.detailText.select();
-    return new Promise(resolve => el.detail.addEventListener("close", () => {
-      resolve(el.detail.returnValue === "ok"
-        ? { text: el.detailText.value.trim(), note: el.detailNote.value.trim() }
-        : null);
-    }, { once: true }));
-  }
+      const tx = (mode, run) => database().then(db => new Promise((resolve, reject) => {
+        const req = run(db.transaction(STORE, mode).objectStore(STORE));
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      }));
 
-  async function openTask(t) {
-    const next = await detail(t);
-    if (!next) return;
-    t.text = next.text || t.text;
-    if (next.note) t.note = next.note;
-    else delete t.note;
-    save("edit");
-    // Closing the dialog hands focus back to the row, but the repaint above
-    // replaced it, so put the cursor back where it was.
-    if (document.activeElement === document.body) restoreFocus(0);
-  }
+      const remember = (h) => tx("readwrite", s => s.put(h, KEY)).catch(() => { });
+      const remembered = () => tx("readonly", s => s.get(KEY)).catch(() => null);
 
-  // ─── sections ──────────────────────────────────────────────────
+      // ─── saving and undo ───────────────────────────────────────────
 
-  function renderSections() {
-    const chip = (label, id) => {
-      const b = h("button", { type: "button", className: "btn", textContent: label, onclick: () => { filter = id; render(); } });
-      b.classList.toggle("on", filter === id);
-      return b;
-    };
-    const manage = (label, fn, name) => h("button",
-      { type: "button", className: "manage", textContent: label, title: name || label, onclick: fn });
-    el.sections.replaceChildren(
-      ...(sections.length ? [chip("All", "all"), ...sections.map(s => chip(s.name, s.id))] : []),
-      manage("+", () => editSection(), "New section (N)"));
-    const here = sections.find(s => s.id === filter);
-    if (here) el.sections.append(
-      manage("/", () => editSection(here), "Rename section (R)"),
-      manage("\u00D7", () => remove(here), "Remove section (X)"));
-  }
+      const snapshot = (indent) => JSON.stringify({ title, sections, tasks }, null, indent);
+      let past = [], current = snapshot();
 
-  async function editSection(section) {
-    const asked = await ask({
-      text: section ? "Rename this section" : "Name this section",
-      name: true,
-      value: section ? section.name : "",
-      go: section ? "Rename" : "Add"
-    });
-    const name = (asked || "").slice(0, 40);
-    if (!name) return;
-    if (section) {
-      section.name = name;
-    } else {
-      const s = { id: uid(), name };
-      sections.push(s);
-      filter = s.id;
-    }
-    save(section ? "rename" : "new section");
-  }
+      // Every data mutation ends here, so history is recorded in one place.
+      function save(label) {
+        const next = snapshot();
+        if (next !== current) {
+          past.push({ data: current, label: label || "change" });
+          if (past.length > 40) past.shift();
+          current = next;
+        }
+        flush();
+      }
 
-  async function remove(s) {
-    const ok = await ask({
-      text: "Remove the section \u201C" + s.name + "\u201D? Its tasks move back to General.",
-      go: "Remove",
-      danger: true
-    });
-    if (!ok) return;
-    tasks.forEach(t => { if (t.sectionId === s.id) t.sectionId = null; });
-    sections = sections.filter(x => x !== s);
-    filter = "all";
-    save("remove section");
-  }
+      function undo() {
+        if (!past.length) return;
+        current = past.pop().data;
+        hydrate(JSON.parse(current));
+        if (filter !== "all" && !sections.some(s => s.id === filter)) filter = "all";
+        flush();
+      }
 
-  // ─── moving tasks around ───────────────────────────────────────
+      function flush() {
+        clearTimeout(timer);
+        if (handle) timer = setTimeout(() => { timer = null; write(); }, 300);
+        render();
+      }
 
-  const act = (label, fn, cls) => h("button", { type: "button", textContent: label, className: cls, onclick: fn });
-  const stamp = (t, changes) => Object.assign(t, changes, { at: now() });
-
-  function focusRow(dir) {
-    const rows = [...el.list.querySelectorAll("li[data-id]")];
-    if (!rows.length) return;
-    const at = rows.indexOf(document.activeElement.closest("li[data-id]"));
-    rows[at < 0 ? 0 : Math.max(0, Math.min(rows.length - 1, at + dir))].focus();
-  }
-
-  function restage(t, dir) {
-    const to = STAGES[STAGES.findIndex(s => s.id === t.stage) + dir];
-    if (to) move(t, to.id);
-  }
-
-  function reorder(t, dir) {
-    if (stage === "archive") return;
-    const grouped = sections.length > 0 && filter === "all";
-    const near = visible().filter(x => !grouped || x.sectionId === t.sectionId);
-    const swap = near[near.indexOf(t) + dir];
-    if (!swap) return;
-    const a = tasks.indexOf(t), b = tasks.indexOf(swap);
-    [tasks[a], tasks[b]] = [tasks[b], tasks[a]];
-    save("reorder");
-  }
-
-  function resection(t) {
-    if (!sections.length) return;
-    const ids = [null, ...sections.map(s => s.id)];
-    t.sectionId = ids[(ids.indexOf(t.sectionId) + 1) % ids.length];
-    save("move to section");
-  }
-
-  function refilter(dir) {
-    if (!sections.length) return;
-    const ids = ["all", ...sections.map(s => s.id)];
-    filter = ids[(ids.indexOf(filter) + dir + ids.length) % ids.length];
-    render();
-  }
-
-  function move(t, to) {
-    stamp(t, { stage: to, done: to === "archive" ? t.done : false });
-    save(to === "archive" ? "archive" : "move");
-  }
-
-  // ─── building a row ────────────────────────────────────────────
-
-  function toggle(t, done) {
-    stamp(t, { done });
-    save(done ? "finish" : "reopen");
-  }
-
-  async function purge(t) {
-    const ok = await ask({
-      text: "Delete \u201C" + t.text + "\u201D for good?",
-      go: "Delete",
-      danger: true
-    });
-    if (!ok) return;
-    tasks = tasks.filter(x => x !== t);
-    save("delete");
-  }
-
-  function buildRow(t) {
-    const archived = t.stage === "archive";
-    const li = h("li", { className: t.done && !archived ? "done" : "", tabIndex: 0 });
-    li.dataset.id = t.id;
-    li.style.viewTransitionName = "t" + t.id.replace(/-/g, "");
-
-    const lead = archived
-      ? h("span", {
-          className: t.done ? "outcome finished" : "outcome",
-          textContent: (t.done ? "\u2713 Finished " : "\u25CB Dropped ") + when(t.at)
-        })
-      : h("span", { className: "grip", title: "Drag to reorder", textContent: "\u283F" });
-
-    const box = t.stage === "focus"
-      ? h("input", {
-          type: "checkbox",
-          className: "box",
-          checked: t.done,
-          onchange: (e) => toggle(t, e.target.checked)
-        })
-      : null;
-
-    const label = h("span", {
-      className: "label",
-      textContent: t.text,
-      title: "Click to open (Enter)",
-      onclick: () => openTask(t)
-    });
-
-    // A description is invisible from the list otherwise.
-    const mark = t.note
-      ? h("span", { className: "mark", textContent: "\u00B6", title: "Has a description" })
-      : null;
-
-    li.append(h("div", { className: "main" }, [lead, box, label, mark]), ...rowActions(t));
-    return li;
-  }
-
-  function rowActions(t) {
-    if (t.stage === "archive") {
-      const back = act("\u2190 Restore", () => move(t, "focus"), "btn");
-      back.title = "Back to focus (\u2190)";
-      const kill = act("Delete", () => purge(t), "btn danger");
-      kill.title = "Delete for good (Backspace)";
-      return [back, kill];
-    }
-    const here = STAGES.findIndex(s => s.id === t.stage);
-    const buttons = [];
-    const step = (to, arrow, primary) => {
-      const b = act(arrow + " " + to.label, () => move(t, to.id), primary ? "btn primary" : "btn");
-      b.title = (arrow === "\u2192" ? "Send to " : "Back to ") + to.label.toLowerCase() + " (" + arrow + ")";
-      buttons.push(b);
-    };
-    const back = STAGES[here - 1];
-    // The point of a waiting task is picking it back up, so that button leads.
-    if (back) step(back, "\u2190", t.stage === "waiting");
-    // Archive has its own button and Backspace, so it is never a forward step.
-    const on = STAGES[here + 1];
-    if (on && on.id !== "archive") step(on, "\u2192", t.stage === "inbox");
-    const gone = act("\u00D7", () => move(t, "archive"), "x");
-    gone.title = "Move to archive (Backspace)";
-    return [...buttons, gone];
-  }
-
-  // ─── editing in place ──────────────────────────────────────────
-
-  function edit(node, was, commit) {
-    if (node.isContentEditable) return;
-    node.contentEditable = "plaintext-only";
-    node.focus();
-    getSelection().selectAllChildren(node);
-    getSelection().collapseToEnd();
-
-    const done = new AbortController();
-
-    node.addEventListener("blur", () => {
-      done.abort();
-      node.contentEditable = "false";
-      commit(node.textContent.trim() || was);
-    }, { signal: done.signal });
-
-    node.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" && e.key !== "Escape") return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.key === "Escape") node.textContent = was;
-      node.blur();
-    }, { signal: done.signal });
-  }
-
-  function editTitle() {
-    edit(el.title, title, (next) => {
-      title = next.slice(0, 60);
-      save("rename the list");
-    });
-  }
-
-  // ─── rendering ─────────────────────────────────────────────────
-
-  function render() {
-    if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      paint();
-      return;
-    }
-    document.startViewTransition(paint);
-  }
-
-  function paint() {
-    const held = el.list.contains(document.activeElement)
-      ? [...el.list.querySelectorAll("li[data-id]")].indexOf(document.activeElement.closest("li[data-id]")) : -1;
-    renderSections();
-    renderStorage();
-    const rows = visible();
-    const grouped = sections.length > 0 && filter === "all";
-    const nodes = [];
-    if (grouped && rows.length) {
-      [{ id: null, name: "General" }, ...sections].forEach(s => {
-        const mine = rows.filter(t => t.sectionId === s.id);
-        if (!mine.length && stage === "archive") return;
-        const head = h("li", { className: "group", textContent: s.name });
-        head.dataset.section = s.id || "";
-        nodes.push(head, ...mine.map(buildRow));
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden && timer) { clearTimeout(timer); timer = null; write(); }
       });
-    } else {
-      nodes.push(...rows.map(buildRow));
-    }
-    el.list.replaceChildren(...nodes);
-    el.empty.textContent = STAGES.find(s => s.id === stage).empty;
-    el.empty.hidden = rows.length > 0;
-    el.stages.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.stage === stage));
-    el.sweep.hidden = stage !== "focus" || !rows.some(t => t.done);
-    el.undo.hidden = !past.length;
-    if (past.length) el.undo.textContent = "\u21B6 Undo " + past[past.length - 1].label;
-    if (!el.title.isContentEditable) el.title.textContent = title;
-    document.title = title;
-    document.querySelectorAll("#entry, #sections button, #stages button, .tray button, #list button, #list input")
-      .forEach(n => { n.tabIndex = -1; });
-    if (held >= 0) restoreFocus(held);
-  }
 
-  let cursor = null;
+      // Changes coming faster than a write completes would start a second stream on a
+      // file the first one still holds. Keep one write in flight, and follow it with a
+      // single catch-up write for whatever changed meanwhile.
+      let writing = null, pending = false;
 
-  function restoreFocus(held) {
-    const rows = [...el.list.querySelectorAll("li[data-id]")];
-    const row = rows.find(r => r.dataset.id === cursor) || rows[Math.min(held, rows.length - 1)];
-    if (row) row.focus();
-  }
+      function write() {
+        if (writing) { pending = true; return writing; }
+        writing = writeOnce().finally(() => {
+          writing = null;
+          if (pending) { pending = false; write(); }
+        });
+        return writing;
+      }
 
-  el.list.addEventListener("focusin", (e) => {
-    const li = e.target.closest("li[data-id]");
-    if (li) cursor = li.dataset.id;
-  });
+      async function writeOnce() {
+        try {
+          const stream = await handle.createWritable();
+          await stream.write(snapshot(2));
+          await stream.close();
+          savedAt = new Date();
+          problem = "";
+          stalled = null;
+        } catch (err) {
+          if (err.name === "SecurityError" || err.name === "NotAllowedError") return lock();
+          problem = err.name + ": " + (err.message || "write failed");
+        }
+        renderStorage();
+      }
 
-  // ─── keyboard ──────────────────────────────────────────────────
+      // The browser lets go of a file once the tab has sat idle, and the writes here
+      // are debounced or fire on the way out, so none of them can recover it. Park the
+      // file instead and let the button below, which has a click behind it, sort it out.
+      function lock() {
+        stalled = {
+          note: "Your browser let go of " + handle.name + ". Point at the same file again to carry on saving.",
+          go: "Choose " + short(handle.name) + " again",
+          act: reconnect
+        };
+        renderStorage();
+      }
 
-  el.entry.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      el.entry.blur();
-      return;
-    }
-    const text = el.entry.value.trim();
-    if (e.key !== "Enter" || !text) return;
-    tasks.unshift(normalize({ text, stage: "inbox", sectionId: filter === "all" ? null : filter }));
-    el.entry.value = "";
-    stage = "inbox";
-    save("add");
-  });
+      // requestPermission() refuses to run on a page whose origin is opaque, which is
+      // what a page opened straight from disk has. Picking the same file again grants
+      // the same thing without asking, and works either way.
+      async function reconnect() {
+        try {
+          const asked = await handle.requestPermission({ mode: "readwrite" })
+            .catch(err => { if (err.name === "SecurityError") return "prompt"; throw err; });
+          if (asked !== "granted") {
+            handle = await window.showSaveFilePicker({ suggestedName: handle.name, types: TYPES });
+            await remember(handle);
+          }
+          await write();
+        } catch (err) {
+          if (err.name === "AbortError") return;
+          problem = err.name + ": " + (err.message || "unknown error");
+          renderStorage();
+        }
+      }
 
-  function rowKey(e, li, t) {
-    const archived = t.stage === "archive";
-    if (e.altKey) {
-      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return false;
-      reorder(t, e.key === "ArrowUp" ? -1 : 1);
-      return true;
-    }
-    switch (e.key) {
-      case "Enter":
-        openTask(t);
-        return true;
+      const picker = (fn) => async () => {
+        try {
+          await fn();
+          await remember(handle);
+          problem = "";
+          past = [];
+          current = snapshot();
+          await write();
+          render();
+          el.entry.focus();
+        } catch (err) {
+          if (err.name === "AbortError") return;
+          problem = err.name === "SecurityError"
+            ? "Your browser blocked the file picker on a page opened straight from disk."
+            : err.name + ": " + (err.message || "unknown error");
+          renderStorage();
+        }
+      };
 
-      case " ":
-        if (t.stage === "focus") toggle(t, !t.done);
-        return true;
+      const newFile = picker(async () => {
+        handle = await window.showSaveFilePicker({ suggestedName: "tasks.json", types: TYPES });
+      });
 
-      case "ArrowRight":
-        restage(t, 1);
-        return true;
+      const openFile = picker(async () => {
+        const [picked] = await window.showOpenFilePicker({ types: TYPES, multiple: false });
+        const text = await (await picked.getFile()).text();
+        hydrate(text.trim() ? JSON.parse(text) : {});
+        handle = picked;
+        filter = "all";
+      });
 
-      case "ArrowLeft":
-        // Restoring skips waiting, matching the button on an archived row.
-        if (archived) move(t, "focus");
-        else restage(t, -1);
-        return true;
+      // ─── picking the file back up ──────────────────────────────────
 
-      case "Backspace":
-      case "Delete":
-        if (archived) purge(t);
-        else move(t, "archive");
-        return true;
+      async function restore() {
+        if (!supported) return;
+        const kept = await remembered();
+        if (!kept) return;
+        handle = kept;
+        try {
+          if (await handle.queryPermission({ mode: "readwrite" }) === "granted") return load();
+        } catch {
+          handle = null;
+          return;
+        }
+        stalled = {
+          note: "Picking up where you left off in " + handle.name + ".",
+          go: "Open " + short(handle.name),
+          act: resume
+        };
+        renderStorage();
+      }
 
-      case "m":
-      case "M":
-        resection(t);
-        return true;
-    }
-    return false;
-  }
+      async function resume() {
+        try {
+          if (await handle.requestPermission({ mode: "readwrite" }) !== "granted") {
+            problem = "Nothing can be saved until " + handle.name + " is open again.";
+            return renderStorage();
+          }
+          await load();
+        } catch (err) {
+          if (err.name !== "AbortError") lost(err);
+        }
+      }
 
-  function appKey(e) {
-    const mine = sections.find(x => x.id === filter);
-    switch (e.key) {
-      case "ArrowDown": focusRow(1); return true;
-      case "ArrowUp": focusRow(-1); return true;
-      case "1": case "2": case "3": case "4": stage = STAGES[+e.key - 1].id; render(); return true;
-      case "[": refilter(-1); return true;
-      case "]": refilter(1); return true;
-      case "n": case "N": editSection(); return true;
-      case "r": case "R": if (mine) editSection(mine); return true;
-      case "x": case "X": if (mine) remove(mine); return true;
-      case "t": case "T": editTitle(); return true;
-      case "d": case "D": cycleTheme(); return true;
-      case "s": case "S": if (!el.sweep.hidden) el.sweep.click(); return true;
-      case "u": case "U": undo(); return true;
-      case "?": el.help.togglePopover(); return true;
-      case "Enter": el.entry.focus(); return true;
-    }
-    return false;
-  }
+      // Writes nothing back, unlike picker(): opening a file should not touch it.
+      async function load() {
+        try {
+          const text = await (await handle.getFile()).text();
+          hydrate(text.trim() ? JSON.parse(text) : {});
+        } catch (err) {
+          return lost(err);
+        }
+        past = [];
+        current = snapshot();
+        stalled = null;
+        problem = "";
+        render();
+        el.entry.focus();
+      }
 
-  document.addEventListener("keydown", (e) => {
-    const here = document.activeElement || document.body;
-    if (here.isContentEditable || /^(INPUT|TEXTAREA)$/.test(here.tagName)) return;
-    if (el.ask.open || el.detail.open) return;
-    // The popover handles Esc and light dismiss itself; ? still closes it.
-    if (el.help.matches(":popover-open")) {
-      if (e.key === "?") { el.help.hidePopover(); e.preventDefault(); }
-      return;
-    }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
-      e.preventDefault();
-      undo();
-      return;
-    }
-    if (e.metaKey || e.ctrlKey || !handle) return;
-    const li = here.closest ? here.closest("li[data-id]") : null;
-    const t = li && byId(li.dataset.id);
-    if ((t && rowKey(e, li, t)) || (!e.altKey && appKey(e))) e.preventDefault();
-  });
+      function lost(err) {
+        if (err.name === "NotFoundError") {
+          problem = handle.name + " has moved or gone. Open it where it lives now, or start a new one.";
+          handle = null;
+          remember(null);
+        } else {
+          problem = err.name + ": " + (err.message || "the file could not be read");
+        }
+        stalled = null;
+        renderStorage();
+      }
 
-  const KEYS = [
-    ["Tab \u00B7 \u2191 \u2193", "move between tasks"],
-    ["Enter", "capture a task, or open the focused one"],
-    ["Space", "finish or reopen"],
-    ["\u2192 \u00B7 \u2190", "send along or back: inbox \u2013 focus \u2013 waiting \u2013 archive"],
-    ["Backspace", "archive, or delete if already archived"],
-    ["Alt \u2191 \u2193", "reorder"],
-    ["M", "move to the next section"],
-    ["1 2 3 4", "inbox, focus, waiting, archive"],
-    ["[ ]", "previous or next section"],
-    ["N \u00B7 R \u00B7 X", "new, rename or remove a section"],
-    ["T", "rename the list"],
-    ["D", "light, dark or match the system"],
-    ["S", "archive everything finished"],
-    ["U \u00B7 Ctrl Z", "undo"],
-    ["?", "this list"]
-  ];
+      // ─── the storage line ──────────────────────────────────────────
 
-  // ─── light or dark ─────────────────────────────────────────────
+      function renderStorage() {
+        document.body.classList.toggle("nowhere", !handle);
+        el.storage.className = handle && !stalled ? "storage" : "storage stale";
+        // With no file yet the two buttons below say it all, so there is nothing to write.
+        el.storage.replaceChildren(handle
+          ? stalled
+            ? stalled.note
+            : "Saving to " + handle.name + (savedAt ? " \u00B7 saved " + savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "")
+          : supported
+            ? ""
+            : "Saving straight to a file needs Chrome or Edge on the desktop, so nothing here can be kept.");
+        if (handle && stalled) el.storage.append(
+          h("button", { type: "button", className: "btn primary", textContent: stalled.go, onclick: stalled.act }));
+        if (!handle && supported) el.storage.append(
+          h("button", { type: "button", className: "btn primary", textContent: "Open a file", onclick: openFile }),
+          h("button", { type: "button", className: "btn", textContent: "Start a new file", onclick: newFile }));
+        if (problem) el.storage.append(h("span", { className: "problem", textContent: problem }));
+      }
 
-  // Belongs to this browser rather than to the list, so it stays out of the file and out of undo.
-  const MODES = [
-    { id: "auto", scheme: "", mark: "\u25D0\uFE0E", say: "matching your system" },
-    { id: "light", scheme: "light", mark: "\u2600\uFE0E", say: "always light" },
-    { id: "dark", scheme: "dark", mark: "\u263E\uFE0E", say: "always dark" }
-  ];
+      // ─── asking ────────────────────────────────────────────────────
 
-  const THEME = "tasks.theme";
-  const preferred = () => { try { return localStorage.getItem(THEME); } catch { return null; } };
-  const prefer = (id) => { try { localStorage.setItem(THEME, id); } catch {} };
+      // <form method="dialog"> closes the dialog and reports which button
+      // submitted it, so nothing here has to wire up the accept path.
+      function ask(opts) {
+        el.askText.textContent = opts.text;
+        el.askInput.hidden = !opts.name;
+        el.askInput.value = opts.name ? opts.value || "" : "";
+        el.askGo.textContent = opts.go || "Save";
+        el.askGo.classList.toggle("primary", !opts.danger);
+        el.askGo.classList.toggle("danger", !!opts.danger);
+        el.ask.returnValue = "";
+        el.ask.showModal();
+        if (opts.name) el.askInput.select();
+        return new Promise(resolve => el.ask.addEventListener("close", () => {
+          if (el.ask.returnValue !== "ok") return resolve(null);
+          resolve(opts.name ? el.askInput.value.trim() || null : true);
+        }, { once: true }));
+      }
 
-  let mode = MODES.find(m => m.id === preferred()) || MODES[0];
 
-  function applyTheme() {
-    document.documentElement.style.colorScheme = mode.scheme;
-    el.theme.textContent = mode.mark;
-    el.theme.title = "Theme: " + mode.say + " (D)";
-  }
+      // ─── a task up close ───────────────────────────────────────────
 
-  function cycleTheme() {
-    mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
-    prefer(mode.id);
-    applyTheme();
-  }
+      // Same accept path as ask(): the form closes the dialog and reports
+      // which button submitted it, and Escape leaves returnValue empty.
+      function detail(t) {
+        el.detailText.value = t.text;
+        el.detailNote.value = t.note || "";
+        el.detail.returnValue = "";
+        el.detail.showModal();
+        el.detailText.select();
+        return new Promise(resolve => el.detail.addEventListener("close", () => {
+          resolve(el.detail.returnValue === "ok"
+            ? { text: el.detailText.value.trim(), note: el.detailNote.value.trim() }
+            : null);
+        }, { once: true }));
+      }
 
-  el.theme.addEventListener("click", cycleTheme);
+      async function openTask(t) {
+        const next = await detail(t);
+        if (!next) return;
+        t.text = next.text || t.text;
+        if (next.note) t.note = next.note;
+        else delete t.note;
+        save("edit");
+        // Closing the dialog hands focus back to the row, but the repaint above
+        // replaced it, so put the cursor back where it was.
+        if (document.activeElement === document.body) restoreFocus(0);
+      }
 
-  // ─── wiring up the chrome ──────────────────────────────────────
+      // ─── sections ──────────────────────────────────────────────────
 
-  el.help.replaceChildren(h("h2", { textContent: "Keyboard" }), ...KEYS.flatMap(([k, what]) =>
-    [h("kbd", { textContent: k }), h("span", { textContent: what })]));
-  el.title.addEventListener("click", editTitle);
+      function renderSections() {
+        const chip = (label, id) => {
+          const b = h("button", { type: "button", className: "btn", textContent: label, onclick: () => { filter = id; render(); } });
+          b.classList.toggle("on", filter === id);
+          return b;
+        };
+        const manage = (label, fn, name) => h("button",
+          {
+            type: "button", className: "manage", textContent: label, title: name || label,
+            ariaLabel: (name || label).replace(/ \([^)]*\)$/, ""), onclick: fn
+          });
+        el.sections.replaceChildren(
+          ...(sections.length ? [chip("All", "all"), ...sections.map(s => chip(s.name, s.id))] : []),
+          manage("+", () => editSection(), "New section (N)"));
+        const here = sections.find(s => s.id === filter);
+        if (here) el.sections.append(
+          manage("/", () => editSection(here), "Rename section (R)"),
+          manage("\u00D7", () => remove(here), "Remove section (X)"));
+      }
 
-  el.stages.replaceChildren(...STAGES.map((s, i) => {
-    const b = h("button", { type: "button", textContent: s.label, title: s.label + " (" + (i + 1) + ")", onclick: () => { stage = s.id; render(); } });
-    b.dataset.stage = s.id;
-    return b;
-  }));
+      async function editSection(section) {
+        const asked = await ask({
+          text: section ? "Rename this section" : "Name this section",
+          name: true,
+          value: section ? section.name : "",
+          go: section ? "Rename" : "Add"
+        });
+        const name = (asked || "").slice(0, 40);
+        if (!name) return;
+        if (section) {
+          section.name = name;
+        } else {
+          const s = { id: uid(), name };
+          sections.push(s);
+          filter = s.id;
+        }
+        save(section ? "rename" : "new section");
+      }
 
-  el.undo.addEventListener("click", undo);
+      // Undo covers this and no task is lost, so it goes straight through.
+      function remove(s) {
+        tasks.forEach(t => { if (t.sectionId === s.id) t.sectionId = null; });
+        sections = sections.filter(x => x !== s);
+        filter = "all";
+        save("remove section");
+      }
 
-  el.sweep.addEventListener("click", () => {
-    visible().forEach(t => { if (t.done) stamp(t, { stage: "archive" }); });
-    save("archive finished");
-  });
+      // ─── moving tasks around ───────────────────────────────────────
 
-  // ─── drag to reorder ───────────────────────────────────────────
+      const act = (label, fn, cls) => h("button", { type: "button", textContent: label, className: cls, onclick: fn });
+      const stamp = (t, changes) => Object.assign(t, changes, { at: now() });
 
-  el.list.addEventListener("mousedown", (e) => {
-    if (e.target.classList.contains("grip")) e.target.closest("li").draggable = true;
-  });
+      function focusRow(dir) {
+        const rows = [...el.list.querySelectorAll("li[data-id]")];
+        if (!rows.length) return;
+        const at = rows.indexOf(document.activeElement.closest("li[data-id]"));
+        rows[at < 0 ? 0 : Math.max(0, Math.min(rows.length - 1, at + dir))].focus();
+      }
 
-  document.addEventListener("mouseup", () => {
-    el.list.querySelectorAll("li[draggable]").forEach(n => { n.draggable = false; });
-  });
+      function restage(t, dir) {
+        const to = STAGES[STAGES.findIndex(s => s.id === t.stage) + dir];
+        if (to) move(t, to.id);
+      }
 
-  el.list.addEventListener("dragstart", (e) => e.target.classList.add("dragging"));
-  el.list.addEventListener("drop", (e) => e.preventDefault());
+      function reorder(t, dir) {
+        if (stage === "archive") return;
+        const grouped = sections.length > 0 && filter === "all";
+        const near = visible().filter(x => !grouped || x.sectionId === t.sectionId);
+        const swap = near[near.indexOf(t) + dir];
+        if (!swap) return;
+        const a = tasks.indexOf(t), b = tasks.indexOf(swap);
+        [tasks[a], tasks[b]] = [tasks[b], tasks[a]];
+        save("reorder");
+      }
 
-  el.list.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    const over = e.target.closest("li");
-    const moving = el.list.querySelector(".dragging");
-    if (!over || !moving || over === moving) return;
-    if (over.classList.contains("group")) over.after(moving);
-    else {
-      const box = over.getBoundingClientRect();
-      over[e.clientY > box.top + box.height / 2 ? "after" : "before"](moving);
-    }
-  });
+      function resection(t) {
+        if (!sections.length) return;
+        const ids = [null, ...sections.map(s => s.id)];
+        t.sectionId = ids[(ids.indexOf(t.sectionId) + 1) % ids.length];
+        save("move to section");
+      }
 
-  el.list.addEventListener("dragend", () => {
-    const nodes = [...el.list.children];
-    const ids = nodes.filter(n => n.dataset.id).map(n => n.dataset.id);
-    const moved = ids.map(byId);
-    // Refill the indices the visible rows occupied, so filtered-out tasks stay put.
-    const shown = new Set(ids);
-    const slots = [];
-    tasks.forEach((t, i) => { if (shown.has(t.id)) slots.push(i); });
-    slots.forEach((slot, i) => { tasks[slot] = moved[i]; });
-    let section = null, grouped = false;
-    nodes.forEach(n => {
-      if (n.classList.contains("group")) { section = n.dataset.section || null; grouped = true; }
-      else if (grouped) byId(n.dataset.id).sectionId = section;
-    });
-    save("reorder");
-  });
+      function refilter(dir) {
+        if (!sections.length) return;
+        const ids = ["all", ...sections.map(s => s.id)];
+        filter = ids[(ids.indexOf(filter) + dir + ids.length) % ids.length];
+        render();
+      }
 
-  applyTheme();
-  render();
-  restore();
-})();
-</script>
+      function move(t, to) {
+        stamp(t, { stage: to, done: to === "archive" ? t.done : false });
+        save(to === "archive" ? "archive" : "move");
+      }
+
+      // ─── building a row ────────────────────────────────────────────
+
+      function toggle(t, done) {
+        stamp(t, { done });
+        save(done ? "finish" : "reopen");
+      }
+
+      async function purge(t) {
+        const ok = await ask({
+          text: "Delete \u201C" + t.text + "\u201D? Undo brings it back until you reload.",
+          go: "Delete",
+          danger: true
+        });
+        if (!ok) return;
+        tasks = tasks.filter(x => x !== t);
+        save("delete");
+      }
+
+      function buildRow(t) {
+        const archived = t.stage === "archive";
+        const li = h("li", { className: t.done && !archived ? "done" : "", tabIndex: 0 });
+        li.dataset.id = t.id;
+        li.style.viewTransitionName = "t" + t.id.replace(/-/g, "");
+
+        const lead = archived
+          ? h("span", { className: t.done ? "outcome finished" : "outcome" }, [
+            h("span", { ariaHidden: "true", textContent: t.done ? "\u2713 " : "\u25CB " }),
+            document.createTextNode((t.done ? "Finished " : "Dropped ") + when(t.at))
+          ])
+          : h("span", { className: "grip", title: "Drag to reorder", ariaHidden: "true", textContent: "\u283F" });
+
+        const box = t.stage === "focus"
+          ? h("input", {
+            type: "checkbox",
+            className: "box",
+            ariaLabel: (t.done ? "Reopen " : "Finish ") + t.text,
+            checked: t.done,
+            onchange: (e) => toggle(t, e.target.checked)
+          })
+          : null;
+
+        const label = h("span", {
+          className: "label",
+          textContent: t.text,
+          title: "Click to open (Enter)",
+          onclick: () => openTask(t)
+        });
+
+        // A description is invisible from the list otherwise.
+        const mark = t.note
+          ? h("span", { className: "mark", textContent: "\u00B6", title: "Has a description" })
+          : null;
+
+        li.append(h("div", { className: "main" }, [lead, box, label, mark]), ...rowActions(t));
+        return li;
+      }
+
+      function rowActions(t) {
+        if (t.stage === "archive") {
+          const back = act("\u2190 Restore", () => move(t, "focus"), "btn");
+          back.title = "Back to focus (\u2190)";
+          const kill = act("Delete", () => purge(t), "btn danger");
+          kill.title = "Delete for good (Backspace)";
+          return [back, kill];
+        }
+        const here = STAGES.findIndex(s => s.id === t.stage);
+        const buttons = [];
+        const step = (to, arrow, primary) => {
+          const b = act(arrow + " " + to.label, () => move(t, to.id), primary ? "btn primary" : "btn");
+          b.title = (arrow === "\u2192" ? "Send to " : "Back to ") + to.label.toLowerCase() + " (" + arrow + ")";
+          buttons.push(b);
+        };
+        const back = STAGES[here - 1];
+        // The point of a waiting task is picking it back up, so that button leads.
+        if (back) step(back, "\u2190", t.stage === "waiting");
+        // Archive has its own button and Backspace, so it is never a forward step.
+        const on = STAGES[here + 1];
+        if (on && on.id !== "archive") step(on, "\u2192", t.stage === "inbox");
+        const gone = act("\u00D7", () => move(t, "archive"), "x");
+        gone.title = "Move to archive (Backspace)";
+        gone.ariaLabel = "Move to archive";
+        return [...buttons, gone];
+      }
+
+      // ─── editing in place ──────────────────────────────────────────
+
+      function edit(node, was, commit) {
+        if (node.isContentEditable) return;
+        node.contentEditable = "plaintext-only";
+        node.focus();
+        getSelection().selectAllChildren(node);
+        getSelection().collapseToEnd();
+
+        const done = new AbortController();
+
+        node.addEventListener("blur", () => {
+          done.abort();
+          node.contentEditable = "false";
+          commit(node.textContent.trim() || was);
+        }, { signal: done.signal });
+
+        node.addEventListener("keydown", (e) => {
+          if (e.key !== "Enter" && e.key !== "Escape") return;
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.key === "Escape") node.textContent = was;
+          node.blur();
+        }, { signal: done.signal });
+      }
+
+      function editTitle() {
+        edit(el.title, title, (next) => {
+          title = next.slice(0, 60);
+          save("rename the list");
+        });
+      }
+
+      // ─── rendering ─────────────────────────────────────────────────
+
+      function render() {
+        if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          paint();
+          return;
+        }
+        document.startViewTransition(paint);
+      }
+
+      function paint() {
+        const held = el.list.contains(document.activeElement)
+          ? [...el.list.querySelectorAll("li[data-id]")].indexOf(document.activeElement.closest("li[data-id]")) : -1;
+        renderSections();
+        renderStorage();
+        const rows = visible();
+        const grouped = sections.length > 0 && filter === "all";
+        const nodes = [];
+        if (grouped && rows.length) {
+          [{ id: null, name: "General" }, ...sections].forEach(s => {
+            const mine = rows.filter(t => t.sectionId === s.id);
+            if (!mine.length && stage === "archive") return;
+            const head = h("li", { className: "group", textContent: s.name });
+            head.dataset.section = s.id || "";
+            nodes.push(head, ...mine.map(buildRow));
+          });
+        } else {
+          nodes.push(...rows.map(buildRow));
+        }
+        el.list.replaceChildren(...nodes);
+        el.empty.textContent = STAGES.find(s => s.id === stage).empty;
+        el.empty.hidden = rows.length > 0;
+        el.stages.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.stage === stage));
+        el.sweep.hidden = stage !== "focus" || !rows.some(t => t.done);
+        el.undo.hidden = !past.length;
+        if (past.length) el.undo.textContent = "\u21B6 Undo " + past[past.length - 1].label;
+        if (!el.title.isContentEditable) el.title.textContent = title;
+        document.title = title;
+        document.querySelectorAll("#entry, #sections button, #stages button, .tray button, #list button, #list input")
+          .forEach(n => { n.tabIndex = -1; });
+        if (held >= 0) restoreFocus(held);
+      }
+
+      let cursor = null;
+
+      function restoreFocus(held) {
+        const rows = [...el.list.querySelectorAll("li[data-id]")];
+        const row = rows.find(r => r.dataset.id === cursor) || rows[Math.min(held, rows.length - 1)];
+        if (row) row.focus();
+      }
+
+      el.list.addEventListener("focusin", (e) => {
+        const li = e.target.closest("li[data-id]");
+        if (li) cursor = li.dataset.id;
+      });
+
+      // ─── keyboard ──────────────────────────────────────────────────
+
+      el.entry.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          el.entry.blur();
+          return;
+        }
+        const text = el.entry.value.trim();
+        if (e.key !== "Enter" || !text) return;
+        tasks.unshift(normalize({ text, stage: "inbox", sectionId: filter === "all" ? null : filter }));
+        el.entry.value = "";
+        stage = "inbox";
+        save("add");
+      });
+
+      function rowKey(e, li, t) {
+        const archived = t.stage === "archive";
+        if (e.altKey) {
+          if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return false;
+          reorder(t, e.key === "ArrowUp" ? -1 : 1);
+          return true;
+        }
+        switch (e.key) {
+          case "Enter":
+            openTask(t);
+            return true;
+
+          case " ":
+            if (t.stage === "focus") toggle(t, !t.done);
+            return true;
+
+          case "ArrowRight":
+            restage(t, 1);
+            return true;
+
+          case "ArrowLeft":
+            // Restoring skips waiting, matching the button on an archived row.
+            if (archived) move(t, "focus");
+            else restage(t, -1);
+            return true;
+
+          case "Backspace":
+          case "Delete":
+            if (archived) purge(t);
+            else move(t, "archive");
+            return true;
+
+          case "m":
+          case "M":
+            resection(t);
+            return true;
+        }
+        return false;
+      }
+
+      function appKey(e) {
+        const mine = sections.find(x => x.id === filter);
+        switch (e.key) {
+          case "ArrowDown": focusRow(1); return true;
+          case "ArrowUp": focusRow(-1); return true;
+          case "1": case "2": case "3": case "4": stage = STAGES[+e.key - 1].id; render(); return true;
+          case "[": refilter(-1); return true;
+          case "]": refilter(1); return true;
+          case "n": case "N": editSection(); return true;
+          case "r": case "R": if (mine) editSection(mine); return true;
+          case "x": case "X": if (mine) remove(mine); return true;
+          case "t": case "T": editTitle(); return true;
+          case "d": case "D": cycleTheme(); return true;
+          case "s": case "S": if (!el.sweep.hidden) el.sweep.click(); return true;
+          case "u": case "U": undo(); return true;
+          case "?": el.help.togglePopover(); return true;
+          case "Enter": el.entry.focus(); return true;
+        }
+        return false;
+      }
+
+      document.addEventListener("keydown", (e) => {
+        const here = document.activeElement || document.body;
+        if (here.isContentEditable || /^(INPUT|TEXTAREA)$/.test(here.tagName)) return;
+        if (el.ask.open || el.detail.open) return;
+        // The popover handles Esc and light dismiss itself; ? still closes it.
+        if (el.help.matches(":popover-open")) {
+          if (e.key === "?") { el.help.hidePopover(); e.preventDefault(); }
+          return;
+        }
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+          e.preventDefault();
+          undo();
+          return;
+        }
+        if (e.metaKey || e.ctrlKey || !handle) return;
+        const li = here.closest ? here.closest("li[data-id]") : null;
+        const t = li && byId(li.dataset.id);
+        if ((t && rowKey(e, li, t)) || (!e.altKey && appKey(e))) e.preventDefault();
+      });
+
+      const KEYS = [
+        ["Tab \u00B7 \u2191 \u2193", "move between tasks"],
+        ["Enter", "capture a task, or open the focused one"],
+        ["Space", "finish or reopen"],
+        ["\u2192 \u00B7 \u2190", "send along or back: inbox \u2013 focus \u2013 waiting \u2013 archive"],
+        ["Backspace", "archive, or delete if already archived"],
+        ["Alt \u2191 \u2193", "reorder"],
+        ["M", "move to the next section"],
+        ["1 2 3 4", "inbox, focus, waiting, archive"],
+        ["[ ]", "previous or next section"],
+        ["N \u00B7 R \u00B7 X", "new, rename or remove a section"],
+        ["T", "rename the list"],
+        ["D", "light, dark or match the system"],
+        ["S", "archive everything finished"],
+        ["U \u00B7 Ctrl Z", "undo"],
+        ["?", "this list"]
+      ];
+
+      // ─── light or dark ─────────────────────────────────────────────
+
+      // Belongs to this browser rather than to the list, so it stays out of the file and out of undo.
+      const MODES = [
+        { id: "auto", scheme: "", mark: "\u25D0\uFE0E", say: "matching your system" },
+        { id: "light", scheme: "light", mark: "\u2600\uFE0E", say: "always light" },
+        { id: "dark", scheme: "dark", mark: "\u263E\uFE0E", say: "always dark" }
+      ];
+
+      const THEME = "tasks.theme";
+      const preferred = () => { try { return localStorage.getItem(THEME); } catch { return null; } };
+      const prefer = (id) => { try { localStorage.setItem(THEME, id); } catch { } };
+
+      let mode = MODES.find(m => m.id === preferred()) || MODES[0];
+
+      function applyTheme() {
+        document.documentElement.style.colorScheme = mode.scheme;
+        el.theme.textContent = mode.mark;
+        el.theme.title = "Theme: " + mode.say + " (D)";
+        el.theme.ariaLabel = "Theme: " + mode.say;
+      }
+
+      function cycleTheme() {
+        mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
+        prefer(mode.id);
+        applyTheme();
+      }
+
+      el.theme.addEventListener("click", cycleTheme);
+
+      // ─── wiring up the chrome ──────────────────────────────────────
+
+      el.help.replaceChildren(h("h2", { textContent: "Keyboard" }), ...KEYS.flatMap(([k, what]) =>
+        [h("kbd", { textContent: k }), h("span", { textContent: what })]));
+      el.title.addEventListener("click", editTitle);
+
+      el.stages.replaceChildren(...STAGES.map((s, i) => {
+        const b = h("button", { type: "button", textContent: s.label, title: s.label + " (" + (i + 1) + ")", onclick: () => { stage = s.id; render(); } });
+        b.dataset.stage = s.id;
+        return b;
+      }));
+
+      el.undo.addEventListener("click", undo);
+
+      el.sweep.addEventListener("click", () => {
+        visible().forEach(t => { if (t.done) stamp(t, { stage: "archive" }); });
+        save("archive finished");
+      });
+
+      // ─── drag to reorder ───────────────────────────────────────────
+
+      el.list.addEventListener("mousedown", (e) => {
+        if (e.target.classList.contains("grip")) e.target.closest("li").draggable = true;
+      });
+
+      document.addEventListener("mouseup", () => {
+        el.list.querySelectorAll("li[draggable]").forEach(n => { n.draggable = false; });
+      });
+
+      el.list.addEventListener("dragstart", (e) => e.target.classList.add("dragging"));
+      el.list.addEventListener("drop", (e) => e.preventDefault());
+
+      el.list.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        const over = e.target.closest("li");
+        const moving = el.list.querySelector(".dragging");
+        if (!over || !moving || over === moving) return;
+        if (over.classList.contains("group")) over.after(moving);
+        else {
+          const box = over.getBoundingClientRect();
+          over[e.clientY > box.top + box.height / 2 ? "after" : "before"](moving);
+        }
+      });
+
+      el.list.addEventListener("dragend", () => {
+        const nodes = [...el.list.children];
+        const ids = nodes.filter(n => n.dataset.id).map(n => n.dataset.id);
+        const moved = ids.map(byId);
+        // Refill the indices the visible rows occupied, so filtered-out tasks stay put.
+        const shown = new Set(ids);
+        const slots = [];
+        tasks.forEach((t, i) => { if (shown.has(t.id)) slots.push(i); });
+        slots.forEach((slot, i) => { tasks[slot] = moved[i]; });
+        let section = null, grouped = false;
+        nodes.forEach(n => {
+          if (n.classList.contains("group")) { section = n.dataset.section || null; grouped = true; }
+          else if (grouped) byId(n.dataset.id).sectionId = section;
+        });
+        save("reorder");
+      });
+
+      applyTheme();
+      render();
+      restore();
+    })();
+  </script>
 </body>
+
 </html>
