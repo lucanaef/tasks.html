@@ -1352,7 +1352,7 @@
         if (grouped && rows.length) {
           [{ id: null, name: "General" }, ...sections].forEach(s => {
             const mine = rows.filter(t => t.sectionId === s.id);
-            if (!mine.length && stage === "archive") return;
+            if (!mine.length && stage !== "inbox") return;
             const head = h("li", { className: "group", textContent: s.name });
             head.dataset.section = s.id || "";
             nodes.push(head, ...mine.map(buildRow));
