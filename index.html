@@ -5,6 +5,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tasks</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <!-- The title bar of an installed app window takes this colour; applyTheme() keeps it current. -->
+  <meta name="theme-color" id="tint" content="#f7fafe">
   <link rel="icon"
     href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none' stroke='%232F7DD9' stroke-width='2.5'><rect x='6.5' y='6.5' width='19' height='19' rx='2.5'/><path d='m10.5 16.5 4 4.5L23 10' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/></svg>">
   <script>
@@ -765,7 +768,7 @@
   <script>
     (function () {
       "use strict";
-      const el = Object.fromEntries(["title", "list", "empty", "entry", "sections", "stages", "storage", "sweep", "undo", "theme", "help", "ask", "askText", "askInput", "askGo", "detail", "detailText", "detailNote"]
+      const el = Object.fromEntries(["title", "list", "empty", "entry", "sections", "stages", "storage", "sweep", "undo", "theme", "tint", "help", "ask", "askText", "askInput", "askGo", "detail", "detailText", "detailNote"]
         .map(id => [id, document.getElementById(id)]));
 
       // ─── elements ──────────────────────────────────────────────────
@@ -1516,8 +1519,15 @@
 
       let mode = MODES.find(m => m.id === preferred()) || MODES[0];
 
+      // The window frame is painted from a meta tag rather than from the stylesheet, so
+      // it cannot read light-dark() and has to be told which way round we are. Mirrors --paper.
+      const TINT = { light: "#f7fafe", dark: "#090c11" };
+      const nocturnal = matchMedia("(prefers-color-scheme: dark)");
+      nocturnal.addEventListener("change", () => { if (!mode.scheme) applyTheme(); });
+
       function applyTheme() {
         document.documentElement.style.colorScheme = mode.scheme;
+        el.tint.content = TINT[(mode.scheme || (nocturnal.matches ? "dark" : "light"))];
         el.theme.textContent = mode.mark;
         el.theme.title = "Theme: " + mode.say + " (D)";
         el.theme.ariaLabel = "Theme: " + mode.say;
@@ -1591,6 +1601,14 @@
         });
         save("reorder");
       });
+
+      // ─── the app shell ─────────────────────────────────────────────
+
+      // Holds the page for the next launch, network or not. A page opened straight from
+      // disk has no worker to register, the same way it has no database.
+      if ("serviceWorker" in navigator) {
+        addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => { }));
+      }
 
       applyTheme();
       render();
